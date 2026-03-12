@@ -44,6 +44,7 @@ interface Scene3DProps {
   onFurnitureDrop: (position: [number, number, number]) => void
   isPlacing: boolean
   furnitureTemplates: FurnitureTemplate[]
+  floorLevelY?: number
 }
 
 // 3D Scene Components
@@ -306,7 +307,7 @@ function StandingTableMesh({ w, h, d }: { w: number; h: number; d: number }) {
   )
 }
 
-function Furniture3D({ item, template }: { item: FurnitureItem; template: FurnitureTemplate }) {
+function Furniture3D({ item, template, floorLevelY = 0 }: { item: FurnitureItem; template: FurnitureTemplate; floorLevelY?: number }) {
   const meshRef = useRef<THREE.Group>(null)
   const { width, depth, height } = template.dimensions
 
@@ -314,7 +315,7 @@ function Furniture3D({ item, template }: { item: FurnitureItem; template: Furnit
   const scaledWidth = width * scale
   const scaledHeight = height * scale
   const scaledDepth = depth * scale
-  const floorY = item.position[1]
+  const floorY = item.position[1] + floorLevelY
   const yPosition = floorY + scaledHeight / 2
 
   const meshProps = { w: scaledWidth, h: scaledHeight, d: scaledDepth }
@@ -434,7 +435,8 @@ function Scene3D({
   panoramaImage,
   onFurnitureDrop,
   isPlacing,
-  furnitureTemplates
+  furnitureTemplates,
+  floorLevelY = 0
 }: Scene3DProps) {
   return (
     <>
@@ -461,7 +463,7 @@ function Scene3D({
       {furniture.map((item) => {
         const template = furnitureTemplates.find(t => item.id.startsWith(t.id + '-'))
         if (!template) return null
-        return <Furniture3D key={item.id} item={item} template={template} />
+        return <Furniture3D key={item.id} item={item} template={template} floorLevelY={floorLevelY} />
       })}
     </>
   )
