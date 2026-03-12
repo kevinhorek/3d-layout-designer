@@ -1,0 +1,24 @@
+{
+  "name": "3D Layout Designer",
+  "short_name": "3D Designer",
+  "description": "Design and visualize event layouts in 3D with drag-and-drop furniture placement",
+  "theme_color": "#1a1a1a",
+  "background_color": "#1a1a1a",
+  "display": "standalone",
+  "orientation": "any",
+  "scope": "/",
+  "start_url": "/",
+  "id": "3d-layout-designer",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon.svg", "sizes": "192x192", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon.svg", "sizes": "512x512", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "categories": ["design", "productivity", "utilities"],
+  "lang": "en-CA",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    { "name": "New Layout", "short_name": "New", "description": "Start a new layout design", "url": "/", "icons": [{ "src": "/icons/icon.svg", "sizes": "192x192" }] }
+  ]
+}
