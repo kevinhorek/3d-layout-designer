@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react'
 import dynamic from 'next/dynamic'
+import { venues, getDefaultVenue, getDefaultLocation, findVenueById, findLocationById, type Venue, type VenueLocation } from './venueData'
 
 const DynamicCanvas = dynamic(
   () => import('./Scene3D').then(mod => mod.Scene3DCanvas || mod.default),
@@ -180,12 +181,34 @@ function CADView({
   )
 }
 
+function loadLocationLayout(location: VenueLocation): FurnitureItem[] {
+  return location.layout.map((item) => ({
+    id: item.id,
+    type: item.type,
+    position: [item.position[0], item.position[1], item.position[2]],
+    rotation: item.rotation,
+    scale: item.scale,
+  }))
+}
+
 export default function LayoutDesigner3D() {
-  const [furniture, setFurniture] = useState<FurnitureItem[]>([])
+  const [selectedVenue, setSelectedVenue] = useState<Venue>(() => getDefaultVenue())
+  const [selectedLocation, setSelectedLocation] = useState<VenueLocation>(() =>
+    getDefaultLocation(getDefaultVenue())
+  )
+  const [furniture, setFurniture] = useState<FurnitureItem[]>(() =>
+    loadLocationLayout(getDefaultLocation(getDefaultVenue()))
+  )
   const [selectedTemplate, setSelectedTemplate] = useState<FurnitureTemplate | null>(null)
   const [panoramaImage, setPanoramaImage] = useState('/images/3d-layout-designer/panorama.jpg')
-  const [roomDimensions] = useState({ width: 10, depth: 10 })
+  const [roomDimensions, setRoomDimensions] = useState({ width: 10, depth: 10 })
   const [isDragging, setIsDragging] = useState(false)
+
+  useEffect(() => {
+    setPanoramaImage(selectedLocation.panorama)
+    setRoomDimensions(selectedLocation.roomDimensions)
+    setFurniture(loadLocationLayout(selectedLocation))
+  }, [selectedLocation])
 
   const handleDragStart = (e: React.DragEvent, template: FurnitureTemplate) => {
     setSelectedTemplate(template)
@@ -218,7 +241,7 @@ export default function LayoutDesigner3D() {
     const newItem: FurnitureItem = {
       id: `${selectedTemplate.id}-${Date.now()}`,
       type: selectedTemplate.type,
-      position,
+      position: [position[0], 0, position[2]],
       rotation: 0,
       scale: 1
     }
@@ -234,7 +257,7 @@ export default function LayoutDesigner3D() {
 
   const handleFurnitureMove = (id: string, x: number, z: number) => {
     setFurniture(furniture.map(item =>
-      item.id === id ? { ...item, position: [x, item.position[1], z] } : item
+      item.id === id ? { ...item, position: [x, 0, z] } : item
     ))
   }
 
@@ -248,11 +271,50 @@ export default function LayoutDesigner3D() {
     ))
   }
 
+  const handleVenueChange = (venueId: string) => {
+    const venue = findVenueById(venueId)
+    if (venue) {
+      setSelectedVenue(venue)
+      setSelectedLocation(venue.locations[0])
+    }
+  }
+
+  const handleLocationChange = (locationId: string) => {
+    const location = findLocationById(selectedVenue, locationId)
+    if (location) setSelectedLocation(location)
+  }
+
   return (
     <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#1a1a1a', overflow: 'hidden' }}>
-      <div style={{ padding: '10px 20px', backgroundColor: '#2a2a2a', borderBottom: '1px solid #444', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ padding: '10px 20px', backgroundColor: '#2a2a2a', borderBottom: '1px solid #444', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
         <h1 style={{ margin: 0, color: '#fff', fontSize: '20px' }}>3D Layout Designer</h1>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <label htmlFor="venue-select" style={{ color: '#aaa', fontSize: '14px' }}>Venue</label>
+            <select
+              id="venue-select"
+              value={selectedVenue.id}
+              onChange={(e) => handleVenueChange(e.target.value)}
+              style={{ padding: '6px 10px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '14px', minWidth: '140px' }}
+            >
+              {venues.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <label htmlFor="location-select" style={{ color: '#aaa', fontSize: '14px' }}>Location</label>
+            <select
+              id="location-select"
+              value={selectedLocation.id}
+              onChange={(e) => handleLocationChange(e.target.value)}
+              style={{ padding: '6px 10px', backgroundColor: '#333', color: '#fff', border: '1px solid #555', borderRadius: '4px', fontSize: '14px', minWidth: '140px' }}
+            >
+              {selectedVenue.locations.map((loc) => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          </div>
           <button
             onClick={() => {
               const input = document.createElement('input')
@@ -300,6 +362,12 @@ export default function LayoutDesigner3D() {
         </div>
 
         <div style={{ width: '250px', backgroundColor: '#2a2a2a', borderLeft: '1px solid #444', padding: '15px', overflowY: 'auto' }}>
+          <div style={{ marginBottom: '15px', paddingBottom: '12px', borderBottom: '1px solid #444' }}>
+            <div style={{ color: '#888', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Space</div>
+            <div style={{ color: '#fff', fontWeight: 600 }}>{selectedVenue.name}</div>
+            <div style={{ color: '#aaa', fontSize: '13px' }}>{selectedLocation.name}</div>
+            <div style={{ color: '#666', fontSize: '12px', marginTop: '4px' }}>{roomDimensions.width}m × {roomDimensions.depth}m</div>
+          </div>
           <h3 style={{ color: '#fff', marginTop: 0, marginBottom: '15px' }}>Furniture Library</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {furnitureTemplates.map((template) => (

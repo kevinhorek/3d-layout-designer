@@ -314,7 +314,8 @@ function Furniture3D({ item, template }: { item: FurnitureItem; template: Furnit
   const scaledWidth = width * scale
   const scaledHeight = height * scale
   const scaledDepth = depth * scale
-  const yPosition = scaledHeight / 2
+  const floorY = item.position[1]
+  const yPosition = floorY + scaledHeight / 2
 
   const meshProps = { w: scaledWidth, h: scaledHeight, d: scaledDepth }
 
