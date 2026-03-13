@@ -4,9 +4,180 @@ html, body {
   overflow: hidden;
   height: 100%;
   width: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 #__next {
   height: 100%;
   width: 100%;
+}
+
+*::-webkit-scrollbar { width: 5px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.14); border-radius: 4px; }
+*::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.25); }
+
+.glass {
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+
+.tbtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  color: #6b7280;
+  font-size: 15px;
+  transition: background 150ms, color 150ms;
+  position: relative;
+  padding: 0 6px;
+  gap: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.tbtn:hover { background: rgba(0, 0, 0, 0.06); color: #1a1a1a; }
+.tbtn.on { background: #003366; color: #fff; }
+.tbtn:disabled { opacity: 0.3; cursor: default; pointer-events: none; }
+.tbtn:disabled:hover { background: transparent; }
+
+.tbtn[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 500;
+}
+
+.omenu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 16px;
+  border: none;
+  background: transparent;
+  text-align: left;
+  font-size: 13px;
+  color: #1a1a1a;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 100ms;
+}
+.omenu button:hover { background: rgba(0, 51, 102, 0.06); }
+.omenu button:disabled { opacity: 0.35; cursor: default; }
+.omenu hr { border: none; border-top: 1px solid rgba(0, 0, 0, 0.06); margin: 4px 8px; }
+
+.csel {
+  padding: 5px 24px 5px 10px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 8px;
+  font-size: 13px;
+  outline: none;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  transition: border-color 150ms;
+}
+.csel:hover { border-color: rgba(255, 255, 255, 0.4); }
+.csel:focus { border-color: rgba(255, 199, 44, 0.6); }
+.csel option { color: #1a1a1a; background: #fff; }
+
+.pinput {
+  width: 100%;
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  box-sizing: border-box;
+  outline: none;
+  background: rgba(255, 255, 255, 0.6);
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.pinput:focus {
+  border-color: #003366;
+  box-shadow: 0 0 0 2px rgba(0, 51, 102, 0.08);
+}
+
+.fcard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1.5px solid transparent;
+  transition: all 150ms;
+  background: transparent;
+  user-select: none;
+}
+.fcard:hover {
+  background: rgba(0, 51, 102, 0.04);
+  border-color: rgba(0, 0, 0, 0.06);
+}
+.fcard.sel {
+  background: #003366;
+  border-color: #FFC72C;
+}
+.fcard.sel span { color: #fff !important; }
+
+.ptab {
+  position: absolute;
+  top: 60px;
+  left: 0;
+  width: 28px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-left: none;
+  border-radius: 0 10px 10px 0;
+  box-shadow: 2px 2px 12px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  z-index: 100;
+  font-size: 16px;
+  color: #6b7280;
+  transition: background 150ms, color 150ms;
+}
+.ptab:hover { background: rgba(255, 255, 255, 1); color: #1a1a1a; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideLeft {
+  from { transform: translateX(-16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes slideRight {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }

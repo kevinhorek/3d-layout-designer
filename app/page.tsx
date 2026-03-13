@@ -12,6 +12,23 @@ const DynamicCanvas = dynamic(
   }
 )
 
+const theme = {
+  bg: '#f8f9fa',
+  surface: 'rgba(255, 255, 255, 0.85)',
+  surfaceSolid: '#ffffff',
+  border: 'rgba(0, 0, 0, 0.08)',
+  text: '#1a1a1a',
+  textSecondary: '#6b7280',
+  accent: '#003366',
+  accentLight: '#FFC72C',
+  danger: '#ef4444',
+  success: '#22c55e',
+  radius: '12px',
+  radiusSm: '8px',
+  shadow: '0 4px 24px rgba(0, 0, 0, 0.08)',
+  blur: 'blur(12px)',
+}
+
 interface FurnitureItem {
   id: string
   type: 'table' | 'chair' | 'stage' | 'bar' | 'decoration'
@@ -42,27 +59,114 @@ interface FurnitureTemplate {
   icon: string
   dimensions: { width: number; depth: number; height: number }
   seats: number
+  cost: number
   previewImage?: string
 }
 
 const furnitureTemplates: FurnitureTemplate[] = [
-  { id: 'round-table-6', name: 'Round Table (6)', type: 'table', shape: 'round-table', icon: '🪑', dimensions: { width: 1.5, depth: 1.5, height: 0.75 }, seats: 6 },
-  { id: 'round-table-8', name: 'Round Table (8)', type: 'table', shape: 'round-table', icon: '🪑', dimensions: { width: 1.8, depth: 1.8, height: 0.75 }, seats: 8 },
-  { id: 'round-table-10', name: 'Round Table (10)', type: 'table', shape: 'round-table', icon: '🪑', dimensions: { width: 2.2, depth: 2.2, height: 0.75 }, seats: 10 },
-  { id: 'rectangular-table', name: 'Rectangular Table', type: 'table', shape: 'rectangular-table', icon: '🪑', dimensions: { width: 2.0, depth: 1.0, height: 0.75 }, seats: 8 },
-  { id: 'high-top-table', name: 'High-top Table', type: 'table', shape: 'high-top', icon: '🪑', dimensions: { width: 0.9, depth: 0.9, height: 1.1 }, seats: 4 },
-  { id: 'standing-table', name: 'Standing Table', type: 'table', shape: 'standing-table', icon: '🪑', dimensions: { width: 0.5, depth: 0.5, height: 1.0 }, seats: 0 },
-  { id: 'chair', name: 'Chair', type: 'chair', shape: 'chair', icon: '🪑', dimensions: { width: 0.5, depth: 0.5, height: 0.9 }, seats: 1 },
-  { id: 'bar-stool', name: 'Bar Stool', type: 'chair', shape: 'bar-stool', icon: '🪑', dimensions: { width: 0.4, depth: 0.4, height: 1.1 }, seats: 1 },
-  { id: 'sofa', name: 'Sofa', type: 'decoration', shape: 'sofa', icon: '🛋️', dimensions: { width: 2.0, depth: 0.9, height: 0.85 }, seats: 3 },
-  { id: 'lounge', name: 'Lounge Bench', type: 'decoration', shape: 'lounge', icon: '🛋️', dimensions: { width: 1.5, depth: 0.7, height: 0.5 }, seats: 2 },
-  { id: 'stage', name: 'Stage', type: 'stage', shape: 'stage', icon: '🎭', dimensions: { width: 3.0, depth: 2.0, height: 0.35 }, seats: 0 },
-  { id: 'stage-large', name: 'Stage (Large)', type: 'stage', shape: 'stage', icon: '🎭', dimensions: { width: 5.0, depth: 3.0, height: 0.4 }, seats: 0 },
-  { id: 'bar', name: 'Bar Counter', type: 'bar', shape: 'bar', icon: '🍸', dimensions: { width: 3.0, depth: 0.8, height: 1.1 }, seats: 0 },
-  { id: 'bar-short', name: 'Bar (Short)', type: 'bar', shape: 'bar', icon: '🍸', dimensions: { width: 1.8, depth: 0.7, height: 1.1 }, seats: 0 },
-  { id: 'podium', name: 'Podium', type: 'decoration', shape: 'podium', icon: '🎤', dimensions: { width: 0.6, depth: 0.5, height: 1.0 }, seats: 0 },
-  { id: 'plant', name: 'Plant', type: 'decoration', shape: 'plant', icon: '🪴', dimensions: { width: 0.4, depth: 0.4, height: 1.0 }, seats: 0 },
-  { id: 'plant-small', name: 'Plant (Small)', type: 'decoration', shape: 'plant', icon: '🪴', dimensions: { width: 0.3, depth: 0.3, height: 0.6 }, seats: 0 },
+  { id: 'round-table-6', name: 'Round Table (6)', type: 'table', shape: 'round-table', icon: '🪑', dimensions: { width: 1.5, depth: 1.5, height: 0.75 }, seats: 6, cost: 85 },
+  { id: 'round-table-8', name: 'Round Table (8)', type: 'table', shape: 'round-table', icon: '🪑', dimensions: { width: 1.8, depth: 1.8, height: 0.75 }, seats: 8, cost: 95 },
+  { id: 'round-table-10', name: 'Round Table (10)', type: 'table', shape: 'round-table', icon: '🪑', dimensions: { width: 2.2, depth: 2.2, height: 0.75 }, seats: 10, cost: 120 },
+  { id: 'rectangular-table', name: 'Rectangular Table', type: 'table', shape: 'rectangular-table', icon: '🪑', dimensions: { width: 2.0, depth: 1.0, height: 0.75 }, seats: 8, cost: 75 },
+  { id: 'high-top-table', name: 'High-top Table', type: 'table', shape: 'high-top', icon: '🪑', dimensions: { width: 0.9, depth: 0.9, height: 1.1 }, seats: 4, cost: 45 },
+  { id: 'standing-table', name: 'Standing Table', type: 'table', shape: 'standing-table', icon: '🪑', dimensions: { width: 0.5, depth: 0.5, height: 1.0 }, seats: 0, cost: 30 },
+  { id: 'chair', name: 'Chair', type: 'chair', shape: 'chair', icon: '🪑', dimensions: { width: 0.5, depth: 0.5, height: 0.9 }, seats: 1, cost: 8 },
+  { id: 'bar-stool', name: 'Bar Stool', type: 'chair', shape: 'bar-stool', icon: '🪑', dimensions: { width: 0.4, depth: 0.4, height: 1.1 }, seats: 1, cost: 12 },
+  { id: 'sofa', name: 'Sofa', type: 'decoration', shape: 'sofa', icon: '🛋️', dimensions: { width: 2.0, depth: 0.9, height: 0.85 }, seats: 3, cost: 150 },
+  { id: 'lounge', name: 'Lounge Bench', type: 'decoration', shape: 'lounge', icon: '🛋️', dimensions: { width: 1.5, depth: 0.7, height: 0.5 }, seats: 2, cost: 110 },
+  { id: 'stage', name: 'Stage', type: 'stage', shape: 'stage', icon: '🎭', dimensions: { width: 3.0, depth: 2.0, height: 0.35 }, seats: 0, cost: 250 },
+  { id: 'stage-large', name: 'Stage (Large)', type: 'stage', shape: 'stage', icon: '🎭', dimensions: { width: 5.0, depth: 3.0, height: 0.4 }, seats: 0, cost: 450 },
+  { id: 'bar', name: 'Bar Counter', type: 'bar', shape: 'bar', icon: '🍸', dimensions: { width: 3.0, depth: 0.8, height: 1.1 }, seats: 0, cost: 200 },
+  { id: 'bar-short', name: 'Bar (Short)', type: 'bar', shape: 'bar', icon: '🍸', dimensions: { width: 1.8, depth: 0.7, height: 1.1 }, seats: 0, cost: 140 },
+  { id: 'podium', name: 'Podium', type: 'decoration', shape: 'podium', icon: '🎤', dimensions: { width: 0.6, depth: 0.5, height: 1.0 }, seats: 0, cost: 65 },
+  { id: 'plant', name: 'Plant', type: 'decoration', shape: 'plant', icon: '🪴', dimensions: { width: 0.4, depth: 0.4, height: 1.0 }, seats: 0, cost: 25 },
+  { id: 'plant-small', name: 'Plant (Small)', type: 'decoration', shape: 'plant', icon: '🪴', dimensions: { width: 0.3, depth: 0.3, height: 0.6 }, seats: 0, cost: 15 },
+]
+
+interface LayoutTemplate {
+  id: string
+  name: string
+  description: string
+  items: Array<{ templateId: string; position: [number, number, number]; rotation: number }>
+}
+
+const layoutTemplatePatterns: LayoutTemplate[] = [
+  {
+    id: 'banquet',
+    name: 'Banquet',
+    description: 'Round tables with seating for formal dining',
+    items: [
+      { templateId: 'round-table-8', position: [-3, 0, -2], rotation: 0 },
+      { templateId: 'round-table-8', position: [0, 0, -2], rotation: 0 },
+      { templateId: 'round-table-8', position: [3, 0, -2], rotation: 0 },
+      { templateId: 'round-table-8', position: [-3, 0, 1], rotation: 0 },
+      { templateId: 'round-table-8', position: [0, 0, 1], rotation: 0 },
+      { templateId: 'round-table-8', position: [3, 0, 1], rotation: 0 },
+      { templateId: 'stage', position: [0, 0, 4], rotation: 0 },
+      { templateId: 'podium', position: [0, 0, 3.2], rotation: 0 },
+    ]
+  },
+  {
+    id: 'theatre',
+    name: 'Theatre',
+    description: 'Rows of chairs facing a stage',
+    items: [
+      { templateId: 'stage', position: [0, 0, 4], rotation: 0 },
+      { templateId: 'podium', position: [0, 0, 3.2], rotation: 0 },
+      ...Array.from({ length: 5 }, (_, row) =>
+        Array.from({ length: 6 }, (_, col) => ({
+          templateId: 'chair',
+          position: [-2.5 + col * 1.0, 0, -row * 1.0] as [number, number, number],
+          rotation: 0
+        }))
+      ).flat()
+    ]
+  },
+  {
+    id: 'classroom',
+    name: 'Classroom',
+    description: 'Rectangular tables with chairs in rows',
+    items: [
+      { templateId: 'podium', position: [0, 0, 4], rotation: 0 },
+      ...Array.from({ length: 3 }, (_, row) =>
+        Array.from({ length: 3 }, (_, col) => ({
+          templateId: 'rectangular-table',
+          position: [-3 + col * 3, 0, -row * 2] as [number, number, number],
+          rotation: 0
+        }))
+      ).flat()
+    ]
+  },
+  {
+    id: 'cocktail',
+    name: 'Cocktail',
+    description: 'Standing tables and bar for networking events',
+    items: [
+      { templateId: 'bar', position: [0, 0, -4], rotation: 0 },
+      { templateId: 'high-top-table', position: [-3, 0, -1], rotation: 0 },
+      { templateId: 'high-top-table', position: [0, 0, -1], rotation: 0 },
+      { templateId: 'high-top-table', position: [3, 0, -1], rotation: 0 },
+      { templateId: 'high-top-table', position: [-2, 0, 2], rotation: 0 },
+      { templateId: 'high-top-table', position: [2, 0, 2], rotation: 0 },
+      { templateId: 'lounge', position: [-4, 0, 2], rotation: Math.PI / 2 },
+      { templateId: 'lounge', position: [4, 0, 2], rotation: -Math.PI / 2 },
+      { templateId: 'plant', position: [-4.5, 0, -4.5], rotation: 0 },
+      { templateId: 'plant', position: [4.5, 0, -4.5], rotation: 0 },
+    ]
+  },
+  {
+    id: 'u-shape',
+    name: 'U-Shape',
+    description: 'Tables arranged in U formation for meetings',
+    items: [
+      { templateId: 'rectangular-table', position: [-3, 0, 0], rotation: Math.PI / 2 },
+      { templateId: 'rectangular-table', position: [-3, 0, -2], rotation: Math.PI / 2 },
+      { templateId: 'rectangular-table', position: [0, 0, -2], rotation: 0 },
+      { templateId: 'rectangular-table', position: [3, 0, -2], rotation: Math.PI / 2 },
+      { templateId: 'rectangular-table', position: [3, 0, 0], rotation: Math.PI / 2 },
+      { templateId: 'podium', position: [0, 0, 2], rotation: 0 },
+    ]
+  }
 ]
 
 const locationColors: Record<string, string> = {
@@ -79,12 +183,14 @@ function CADView({
   furniture,
   onFurnitureMove,
   roomDimensions,
+  tableNumbers = {},
   width: canvasWidth = 300,
   height: canvasHeight = 300
 }: {
   furniture: FurnitureItem[]
   onFurnitureMove: (id: string, x: number, z: number) => void
   roomDimensions: { width: number; depth: number }
+  tableNumbers?: Record<string, number>
   width?: number
   height?: number
 }) {
@@ -128,10 +234,18 @@ function CADView({
         ctx.strokeStyle = '#000'
         ctx.lineWidth = 1
         ctx.strokeRect(x - width / 2, z - depth / 2, width, depth)
+        const tNum = tableNumbers[item.id]
+        if (tNum !== undefined) {
+          ctx.fillStyle = '#fff'
+          ctx.font = 'bold 10px sans-serif'
+          ctx.textAlign = 'center'
+          ctx.fillText(`#${tNum}`, x, z + 3)
+          ctx.textAlign = 'left'
+        }
       })
     }
     draw()
-  }, [furniture, roomDimensions])
+  }, [furniture, roomDimensions, tableNumbers, canvasWidth, canvasHeight])
 
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current
@@ -176,15 +290,12 @@ function CADView({
         ref={canvasRef}
         width={canvasWidth}
         height={canvasHeight}
-        style={{ border: '2px solid #003366', backgroundColor: '#f5f5f5', cursor: dragging ? 'grabbing' : 'grab', borderRadius: '4px', display: 'block' }}
+        style={{ border: `2px solid ${theme.accent}`, backgroundColor: '#f5f5f5', cursor: dragging ? 'grabbing' : 'grab', borderRadius: '8px', display: 'block' }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
       />
-      <div style={{ position: 'absolute', bottom: 4, left: 4, fontSize: '10px', color: '#003366', fontWeight: 600, backgroundColor: 'rgba(255, 255, 255, 0.95)', padding: '2px 6px', borderRadius: '3px', border: '1px solid #ddd' }}>
-        Drag items to move
-      </div>
     </div>
   )
 }
@@ -226,6 +337,15 @@ export default function LayoutDesigner3D() {
   const [lastMeasurement, setLastMeasurement] = useState<number | null>(null)
   const [zoomToFitTrigger, setZoomToFitTrigger] = useState(0)
   const [showCopyFrom, setShowCopyFrom] = useState(false)
+  const [guests, setGuests] = useState<string[]>([])
+  const [guestAssignments, setGuestAssignments] = useState<Record<string, string[]>>({})
+  const [showGuestPanel, setShowGuestPanel] = useState(false)
+  const [itemColors, setItemColors] = useState<Record<string, string>>({})
+  const [customModels, setCustomModels] = useState<Array<{ id: string; url: string; position: [number,number,number]; rotation: number; scale: number }>>([])
+  const [walkthroughMode, setWalkthroughMode] = useState(false)
+  const [showOverflowMenu, setShowOverflowMenu] = useState(false)
+  const [showFurniturePanel, setShowFurniturePanel] = useState(true)
+  const [showMiniMap, setShowMiniMap] = useState(false)
 
   const saveKey = `layout-${selectedVenue.id}-${selectedLocation.id}`
 
@@ -261,17 +381,15 @@ export default function LayoutDesigner3D() {
     })
   }, [pushHistory])
 
-  // Auto-save furniture & floorLevelY to localStorage (debounced)
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(saveKey, JSON.stringify({ furniture, floorLevelY }))
-      } catch { /* quota exceeded — silent fail */ }
+      } catch { /* quota exceeded */ }
     }, 500)
     return () => clearTimeout(timer)
   }, [furniture, floorLevelY, saveKey])
 
-  // Load layout when location changes + initialize history
   useEffect(() => {
     setPanoramaImage(selectedLocation.panorama)
     setRoomDimensions(selectedLocation.roomDimensions)
@@ -296,7 +414,6 @@ export default function LayoutDesigner3D() {
     setHistoryIndex(0)
   }, [selectedLocation, selectedVenue.id])
 
-  // Load from URL on mount
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const layoutParam = params.get('layout')
@@ -316,7 +433,7 @@ export default function LayoutDesigner3D() {
       }
       if (data.y !== undefined) setFloorLevelY(data.y)
       window.history.replaceState({}, '', window.location.pathname)
-    } catch { /* invalid share link — ignore */ }
+    } catch { /* invalid share link */ }
   }, [])
 
   const handleSave = useCallback(() => {
@@ -337,15 +454,68 @@ export default function LayoutDesigner3D() {
     let totalSeats = 0
     let tableCount = 0
     let chairCount = 0
+    let totalCost = 0
     for (const item of furniture) {
       const tpl = furnitureTemplates.find(t => item.id.startsWith(t.id + '-') || item.id === t.id)
       if (!tpl) continue
       totalSeats += tpl.seats
+      totalCost += tpl.cost
       if (tpl.type === 'table') tableCount++
       if (tpl.type === 'chair') chairCount++
     }
-    return { totalSeats, tableCount, chairCount }
+    return { totalSeats, tableCount, chairCount, totalCost }
   })()
+
+  const tableNumbers = useMemo(() => {
+    const nums: Record<string, number> = {}
+    let counter = 1
+    for (const item of furniture) {
+      const tpl = furnitureTemplates.find(t => item.id.startsWith(t.id + '-') || item.id === t.id)
+      if (tpl && tpl.type === 'table') {
+        nums[item.id] = counter++
+      }
+    }
+    return nums
+  }, [furniture])
+
+  const complianceInfo = useMemo(() => {
+    const area = roomDimensions.width * roomDimensions.depth
+    const maxOccupancy = Math.floor(area / 1.4)
+    const currentOccupancy = capacityInfo.totalSeats
+    const overCapacity = currentOccupancy > maxOccupancy
+
+    const minAisleWidth = 0.9
+    let aisleViolations = 0
+    for (let i = 0; i < furniture.length; i++) {
+      const a = furniture[i]
+      const tplA = furnitureTemplates.find(t => a.id.startsWith(t.id + '-') || a.id === t.id)
+      if (!tplA) continue
+      for (let j = i + 1; j < furniture.length; j++) {
+        const b = furniture[j]
+        const tplB = furnitureTemplates.find(t => b.id.startsWith(t.id + '-') || b.id === t.id)
+        if (!tplB) continue
+        const dx = Math.abs(a.position[0] - b.position[0])
+        const dz = Math.abs(a.position[2] - b.position[2])
+        const gapX = dx - (tplA.dimensions.width + tplB.dimensions.width) / 2
+        const gapZ = dz - (tplA.dimensions.depth + tplB.dimensions.depth) / 2
+        const gap = Math.min(dx < (tplA.dimensions.width + tplB.dimensions.width) / 2 ? Infinity : gapX, dz < (tplA.dimensions.depth + tplB.dimensions.depth) / 2 ? Infinity : gapZ)
+        if (gap < minAisleWidth && gap > 0 && gap < Infinity) aisleViolations++
+      }
+    }
+
+    let wallViolations = 0
+    const hw = roomDimensions.width / 2
+    const hd = roomDimensions.depth / 2
+    for (const item of furniture) {
+      const tpl = furnitureTemplates.find(t => item.id.startsWith(t.id + '-') || item.id === t.id)
+      if (!tpl) continue
+      const edgeX = hw - Math.abs(item.position[0]) - tpl.dimensions.width / 2
+      const edgeZ = hd - Math.abs(item.position[2]) - tpl.dimensions.depth / 2
+      if (edgeX < 0 || edgeZ < 0) wallViolations++
+    }
+
+    return { maxOccupancy, currentOccupancy, overCapacity, aisleViolations, wallViolations }
+  }, [furniture, roomDimensions, capacityInfo.totalSeats])
 
   const collidingIds = useMemo(() => {
     const ids = new Set<string>()
@@ -590,11 +760,201 @@ export default function LayoutDesigner3D() {
     setShowCopyFrom(false)
   }, [furniture, updateFurniture])
 
-  const handleDragStart = (e: React.DragEvent, template: FurnitureTemplate) => {
-    setSelectedTemplate(template)
-    setIsDragging(true)
-    e.dataTransfer.effectAllowed = 'copy'
-  }
+  const handleImportGuests = useCallback(() => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.csv,.txt'
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = (ev) => {
+        const text = ev.target?.result as string
+        const names = text.split(/[\n,]/).map(n => n.trim()).filter(n => n.length > 0 && n !== 'Name' && n !== 'name')
+        setGuests(prev => [...new Set([...prev, ...names])])
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+  }, [])
+
+  const handleAssignGuest = useCallback((guestName: string, tableId: string) => {
+    setGuestAssignments(prev => {
+      const next = { ...prev }
+      for (const key of Object.keys(next)) {
+        next[key] = next[key].filter(g => g !== guestName)
+        if (next[key].length === 0) delete next[key]
+      }
+      if (!next[tableId]) next[tableId] = []
+      next[tableId].push(guestName)
+      return next
+    })
+  }, [])
+
+  const handleUnassignGuest = useCallback((guestName: string) => {
+    setGuestAssignments(prev => {
+      const next = { ...prev }
+      for (const key of Object.keys(next)) {
+        next[key] = next[key].filter(g => g !== guestName)
+        if (next[key].length === 0) delete next[key]
+      }
+      return next
+    })
+  }, [])
+
+  const handleAddGuest = useCallback((name: string) => {
+    if (name.trim()) setGuests(prev => [...prev, name.trim()])
+  }, [])
+
+  const handleRemoveGuest = useCallback((name: string) => {
+    setGuests(prev => prev.filter(g => g !== name))
+    handleUnassignGuest(name)
+  }, [handleUnassignGuest])
+
+  const handleApplyTemplate = useCallback((template: LayoutTemplate) => {
+    const items: FurnitureItem[] = template.items.map((item, i) => {
+      const tpl = furnitureTemplates.find(t => t.id === item.templateId)
+      return {
+        id: `${item.templateId}-${Date.now()}-${i}`,
+        type: tpl?.type ?? 'decoration',
+        position: item.position,
+        rotation: item.rotation,
+        scale: 1
+      }
+    })
+    updateFurniture(items)
+  }, [updateFurniture])
+
+  const handleImportModel = useCallback(() => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.glb,.gltf'
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0]
+      if (!file) return
+      const url = URL.createObjectURL(file)
+      setCustomModels(prev => [...prev, {
+        id: `custom-${Date.now()}`,
+        url,
+        position: [0, 0, 0],
+        rotation: 0,
+        scale: 1
+      }])
+    }
+    input.click()
+  }, [])
+
+  const handleExportReport = useCallback(() => {
+    const pageW = 1200
+    const pageH = 900
+    const pages: HTMLCanvasElement[] = []
+
+    const p1 = document.createElement('canvas')
+    p1.width = pageW; p1.height = pageH
+    const c1 = p1.getContext('2d')!
+    c1.fillStyle = '#fff'; c1.fillRect(0, 0, pageW, pageH)
+    c1.fillStyle = '#003366'; c1.fillRect(0, 0, pageW, 80)
+    c1.fillStyle = '#FFC72C'; c1.fillRect(0, 80, pageW, 4)
+    c1.fillStyle = '#fff'; c1.font = 'bold 28px sans-serif'
+    c1.fillText('Event Layout Report', 30, 50)
+    c1.font = '16px sans-serif'
+    c1.fillText(`${selectedVenue.name} — ${selectedLocation.name}`, 30, 72)
+    c1.fillStyle = '#333'; c1.font = '14px sans-serif'
+    c1.fillText(`Generated: ${new Date().toLocaleString()}`, 30, 110)
+    c1.fillText(`Room: ${roomDimensions.width}m × ${roomDimensions.depth}m (${(roomDimensions.width * roomDimensions.depth).toFixed(0)} m²)`, 30, 135)
+    const srcCanvas = document.querySelector('canvas') as HTMLCanvasElement | null
+    if (srcCanvas) {
+      const rh = 500
+      const rw = Math.round(rh * (srcCanvas.width / srcCanvas.height))
+      const rx = (pageW - rw) / 2
+      c1.drawImage(srcCanvas, rx, 170, rw, rh)
+      c1.strokeStyle = '#003366'; c1.lineWidth = 2
+      c1.strokeRect(rx, 170, rw, rh)
+    }
+    c1.fillStyle = '#003366'; c1.font = 'bold 14px sans-serif'
+    c1.fillText(`${capacityInfo.totalSeats} seats | ${capacityInfo.tableCount} tables | ${furniture.length} items | $${capacityInfo.totalCost} estimated`, 30, pageH - 30)
+    pages.push(p1)
+
+    const p2 = document.createElement('canvas')
+    p2.width = pageW; p2.height = pageH
+    const c2 = p2.getContext('2d')!
+    c2.fillStyle = '#fff'; c2.fillRect(0, 0, pageW, pageH)
+    c2.fillStyle = '#003366'; c2.fillRect(0, 0, pageW, 50)
+    c2.fillStyle = '#FFC72C'; c2.fillRect(0, 50, pageW, 3)
+    c2.fillStyle = '#fff'; c2.font = 'bold 18px sans-serif'
+    c2.fillText('Item Inventory', 30, 35)
+
+    const counts: Record<string, { count: number; seats: number; cost: number }> = {}
+    for (const item of furniture) {
+      const tpl = furnitureTemplates.find(t => item.id.startsWith(t.id + '-') || item.id === t.id)
+      if (!tpl) continue
+      if (!counts[tpl.name]) counts[tpl.name] = { count: 0, seats: 0, cost: 0 }
+      counts[tpl.name].count++
+      counts[tpl.name].seats += tpl.seats
+      counts[tpl.name].cost += tpl.cost
+    }
+
+    let y2 = 85
+    c2.fillStyle = '#003366'; c2.font = 'bold 12px sans-serif'
+    c2.fillText('Item', 30, y2); c2.fillText('Qty', 300, y2); c2.fillText('Seats', 380, y2); c2.fillText('Cost', 460, y2)
+    c2.strokeStyle = '#003366'; c2.lineWidth = 1
+    c2.beginPath(); c2.moveTo(30, y2 + 5); c2.lineTo(550, y2 + 5); c2.stroke()
+    y2 += 25
+    c2.font = '12px sans-serif'; c2.fillStyle = '#333'
+    for (const [name, data] of Object.entries(counts)) {
+      c2.fillText(name, 30, y2)
+      c2.fillText(String(data.count), 300, y2)
+      c2.fillText(String(data.seats), 380, y2)
+      c2.fillText(`$${data.cost}`, 460, y2)
+      y2 += 22
+    }
+    y2 += 10
+    c2.fillStyle = '#003366'; c2.font = 'bold 13px sans-serif'
+    c2.fillText(`Total: ${furniture.length} items | ${capacityInfo.totalSeats} seats | $${capacityInfo.totalCost}`, 30, y2)
+
+    y2 += 40
+    c2.fillStyle = '#003366'; c2.font = 'bold 14px sans-serif'
+    c2.fillText('Compliance Check', 30, y2)
+    y2 += 22
+    c2.font = '12px sans-serif'
+    c2.fillStyle = complianceInfo.overCapacity ? '#c53030' : '#2f855a'
+    c2.fillText(`Occupancy: ${complianceInfo.currentOccupancy}/${complianceInfo.maxOccupancy} ${complianceInfo.overCapacity ? '— OVER CAPACITY' : '— OK'}`, 30, y2)
+    y2 += 20
+    c2.fillStyle = complianceInfo.aisleViolations > 0 ? '#c53030' : '#2f855a'
+    c2.fillText(`Aisle clearance (ADA 0.9m min): ${complianceInfo.aisleViolations > 0 ? complianceInfo.aisleViolations + ' violations' : 'OK'}`, 30, y2)
+    y2 += 20
+    c2.fillStyle = complianceInfo.wallViolations > 0 ? '#c53030' : '#2f855a'
+    c2.fillText(`Items within room boundary: ${complianceInfo.wallViolations > 0 ? complianceInfo.wallViolations + ' outside' : 'OK'}`, 30, y2)
+
+    if (guests.length > 0) {
+      y2 += 40
+      c2.fillStyle = '#003366'; c2.font = 'bold 14px sans-serif'
+      c2.fillText(`Seating Chart (${Object.values(guestAssignments).flat().length}/${guests.length} assigned)`, 30, y2)
+      y2 += 22
+      c2.font = '11px sans-serif'; c2.fillStyle = '#333'
+      const tables = furniture.filter(i => { const t = furnitureTemplates.find(tpl => i.id.startsWith(tpl.id + '-')); return t?.type === 'table' })
+      for (const table of tables) {
+        const tNum = tableNumbers[table.id]
+        const assigned = guestAssignments[table.id] || []
+        if (tNum === undefined) continue
+        c2.fillStyle = '#003366'; c2.font = 'bold 11px sans-serif'
+        c2.fillText(`Table #${tNum}:`, 30, y2)
+        c2.fillStyle = '#333'; c2.font = '11px sans-serif'
+        c2.fillText(assigned.length > 0 ? assigned.join(', ') : '(no guests)', 120, y2)
+        y2 += 18
+        if (y2 > pageH - 40) break
+      }
+    }
+
+    pages.push(p2)
+
+    pages.forEach((page, i) => {
+      const link = document.createElement('a')
+      link.download = `${selectedVenue.id}-${selectedLocation.id}-report-page${i + 1}-${Date.now()}.png`
+      link.href = page.toDataURL('image/png')
+      link.click()
+    })
+  }, [selectedVenue, selectedLocation, furniture, roomDimensions, capacityInfo, complianceInfo, guests, guestAssignments, tableNumbers])
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -699,12 +1059,6 @@ export default function LayoutDesigner3D() {
     updateFurniture(furniture.filter(item => item.id !== id))
   }
 
-  const handleRotateFurniture = (id: string) => {
-    updateFurniture(furniture.map(item =>
-      item.id === id ? { ...item, rotation: (item.rotation + Math.PI / 2) % (Math.PI * 2) } : item
-    ))
-  }
-
   const handleVenueChange = (venueId: string) => {
     const venue = findVenueById(venueId)
     if (venue) {
@@ -718,7 +1072,6 @@ export default function LayoutDesigner3D() {
     if (location) setSelectedLocation(location)
   }
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return
@@ -743,6 +1096,7 @@ export default function LayoutDesigner3D() {
         setIsDragging(false)
         setSelectedItemIds([])
         setMeasureMode(false)
+        setShowOverflowMenu(false)
       } else if (e.key === 'ArrowUp' && selectedItemIds.length > 0) {
         e.preventDefault()
         nudgeSelected(0, -0.5)
@@ -762,465 +1116,539 @@ export default function LayoutDesigner3D() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [handleUndo, handleRedo, handleDuplicate, selectedItemIds, handleDeleteSelected, nudgeSelected])
 
+  const hasComplianceIssues = complianceInfo.overCapacity || complianceInfo.aisleViolations > 0 || complianceInfo.wallViolations > 0
+
   return (
-    <div style={{ width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f5f5f5', overflow: 'hidden' }}>
-      <div style={{ padding: '12px 20px', backgroundColor: '#003366', borderBottom: '3px solid #FFC72C', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <img src="/images/coe-logo.svg" alt="City of Edmonton" style={{ height: '56px', width: 'auto', display: 'block' }} />
-          <h1 style={{ margin: 0, color: '#fff', fontSize: '20px', fontWeight: 600 }}>3D Layout Designer</h1>
+    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', backgroundColor: '#1a1a1a' }}>
+
+      {/* ── Full-viewport 3D Canvas ── */}
+      <div
+        style={{ position: 'absolute', inset: 0, zIndex: 0 }}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        <DynamicCanvas
+          furniture={furniture}
+          panoramaImage={panoramaImage}
+          onFurnitureDrop={handleFurnitureDrop}
+          isPlacing={isDragging && selectedTemplate !== null}
+          furnitureTemplates={furnitureTemplates}
+          floorLevelY={floorLevelY}
+          selectedFurnitureIds={selectedItemIds}
+          onFurnitureSelect={(id: string | null, shiftKey?: boolean) => {
+            if (id === null) {
+              setSelectedItemIds([])
+            } else if (shiftKey) {
+              setSelectedItemIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+            } else {
+              setSelectedItemIds([id])
+            }
+          }}
+          onFurnitureMove={(id: string, pos: [number, number, number]) => {
+            updateFurniture(prev => prev.map(item => item.id === id ? { ...item, position: pos } : item))
+          }}
+          snapToGrid={snapToGrid}
+          gridSize={0.5}
+          roomDimensions={roomDimensions}
+          roomColor={locationColors[selectedLocation.id] || '#336699'}
+          showLabels={showLabels}
+          measureMode={measureMode}
+          onMeasureComplete={(dist: number) => setLastMeasurement(dist)}
+          zoomToFitTrigger={zoomToFitTrigger}
+          collidingIds={collidingIds}
+          tableNumbers={tableNumbers}
+          guestAssignments={guestAssignments}
+          walkthroughMode={walkthroughMode}
+          itemColors={itemColors}
+          customModels={customModels}
+        />
+      </div>
+
+      {/* Placement instruction */}
+      {isDragging && selectedTemplate && (
+        <div style={{ position: 'absolute', top: 64, left: '50%', transform: 'translateX(-50%)', zIndex: 200, pointerEvents: 'none' }}>
+          <div className="glass" style={{ padding: '10px 20px', borderRadius: theme.radiusSm, color: theme.accent, fontWeight: 600, fontSize: 13 }}>
+            Click on the floor to place {selectedTemplate.name} &mdash; press Esc to cancel
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <label htmlFor="venue-select" style={{ color: 'rgba(255,255,255,0.9)', fontSize: '14px' }}>Venue</label>
-            <select
-              id="venue-select"
-              value={selectedVenue.id}
-              onChange={(e) => handleVenueChange(e.target.value)}
-              style={{ padding: '6px 10px', backgroundColor: '#fff', color: '#333', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px', minWidth: '140px' }}
-            >
-              {venues.map((v) => (
-                <option key={v.id} value={v.id}>{v.name}</option>
-              ))}
-            </select>
+      )}
+
+      {/* Empty state */}
+      {furniture.length === 0 && !isDragging && (
+        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 200, pointerEvents: 'none' }}>
+          <div className="glass" style={{ padding: '24px 32px', borderRadius: theme.radius, textAlign: 'center', maxWidth: 320, border: `2px solid ${theme.accentLight}` }}>
+            <p style={{ margin: 0, fontSize: 15, color: theme.text, fontWeight: 600 }}>Click furniture from the panel to place it</p>
+            <p style={{ fontSize: 13, marginTop: 10, color: theme.textSecondary }}>Use mouse to rotate, zoom, and pan the view</p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <label htmlFor="location-select" style={{ color: 'rgba(255,255,255,0.9)', fontSize: '14px' }}>Location</label>
-            <select
-              id="location-select"
-              value={selectedLocation.id}
-              onChange={(e) => handleLocationChange(e.target.value)}
-              style={{ padding: '6px 10px', backgroundColor: '#fff', color: '#333', border: '1px solid #ccc', borderRadius: '4px', fontSize: '14px', minWidth: '140px' }}
-            >
-              {selectedVenue.locations.map((loc) => (
-                <option key={loc.id} value={loc.id}>{loc.name}</option>
-              ))}
-            </select>
+        </div>
+      )}
+
+      {/* Walkthrough HUD */}
+      {walkthroughMode && (
+        <div style={{ position: 'absolute', top: 64, left: 16, zIndex: 200, pointerEvents: 'none' }}>
+          <div className="glass" style={{ padding: '10px 14px', borderRadius: theme.radiusSm, fontSize: 12, border: `1px solid ${theme.accentLight}` }}>
+            <div style={{ fontWeight: 600, marginBottom: 4, color: theme.text }}>Walkthrough Mode</div>
+            <div style={{ color: theme.textSecondary }}>Click to lock mouse · WASD to move · Mouse to look</div>
+            <div style={{ color: theme.textSecondary }}>Press Escape to exit</div>
           </div>
-          <button
-            onClick={() => {
-              const input = document.createElement('input')
-              input.type = 'file'
-              input.accept = 'image/*'
-              input.onchange = (e) => {
-                const file = (e.target as HTMLInputElement).files?.[0]
-                if (file) setPanoramaImage(URL.createObjectURL(file))
-              }
-              input.click()
-            }}
-            style={{ padding: '8px 16px', backgroundColor: '#FFC72C', color: '#003366', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
-          >
-            Load Panorama
-          </button>
-          <button
-            onClick={() => setFurniture([])}
-            style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#003366', border: '2px solid #fff', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
-          >
-            Clear All
-          </button>
+        </div>
+      )}
+
+      {/* ── TOP BAR ── */}
+      <header
+        style={{
+          position: 'absolute', top: 0, left: 0, right: 0, height: 48, zIndex: 150,
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0 16px',
+          background: 'rgba(0, 51, 102, 0.92)',
+          backdropFilter: theme.blur,
+          WebkitBackdropFilter: theme.blur,
+          borderBottom: `2px solid ${theme.accentLight}`,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <img src="/images/coe-logo.svg" alt="City of Edmonton" style={{ height: 32 }} />
+          <span style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>3D Layout Designer</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <select className="csel" value={selectedVenue.id} onChange={(e) => handleVenueChange(e.target.value)}>
+            {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+          </select>
+          <select className="csel" value={selectedLocation.id} onChange={(e) => handleLocationChange(e.target.value)}>
+            {selectedVenue.locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+          </select>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button
             onClick={handleSave}
-            style={{ padding: '8px 16px', backgroundColor: saveConfirmation ? '#48bb78' : '#FFC72C', color: saveConfirmation ? '#fff' : '#003366', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, transition: 'background-color 0.2s' }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+              backgroundColor: saveConfirmation ? theme.success : theme.accentLight,
+              color: saveConfirmation ? '#fff' : theme.accent,
+              border: 'none', borderRadius: theme.radiusSm, cursor: 'pointer',
+              fontWeight: 600, fontSize: 13, transition: 'all 200ms',
+            }}
           >
-            {saveConfirmation ? 'Saved!' : 'Save'}
-          </button>
-          <button
-            onClick={handleReset}
-            style={{ padding: '8px 16px', backgroundColor: 'transparent', color: '#fff', border: '2px solid rgba(255,255,255,0.6)', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
-          >
-            Reset
-          </button>
-          <button
-            onClick={handleExport}
-            style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#003366', border: '2px solid #fff', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
-          >
-            Export
-          </button>
-          <button
-            onClick={handleExportFloorPlan}
-            style={{ padding: '8px 16px', backgroundColor: '#fff', color: '#003366', border: '2px solid #fff', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
-          >
-            Floor Plan
-          </button>
-          <button
-            onClick={handleShare}
-            style={{ padding: '8px 16px', backgroundColor: '#FFC72C', color: '#003366', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
-          >
-            Share
+            {saveConfirmation ? '✓ Saved' : 'Save'}
           </button>
           <div style={{ position: 'relative' }}>
             <button
-              onClick={() => setShowCopyFrom(prev => !prev)}
-              style={{ padding: '8px 16px', backgroundColor: 'transparent', color: '#fff', border: '2px solid rgba(255,255,255,0.6)', borderRadius: '4px', cursor: 'pointer', fontWeight: 600 }}
+              onClick={() => setShowOverflowMenu(prev => !prev)}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, background: 'rgba(255,255,255,0.12)',
+                border: '1px solid rgba(255,255,255,0.2)', borderRadius: theme.radiusSm,
+                color: '#fff', fontSize: 20, cursor: 'pointer', lineHeight: 1,
+              }}
             >
-              Copy From...
+              ⋮
             </button>
-            {showCopyFrom && (
-              <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '4px', backgroundColor: '#fff', border: '1px solid #ccc', borderRadius: '4px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 200, maxHeight: '300px', overflowY: 'auto', minWidth: '220px' }}>
-                {venues.map(v => (
-                  <div key={v.id}>
-                    <div style={{ padding: '6px 12px', fontWeight: 600, color: '#003366', fontSize: '12px', backgroundColor: '#f5f5f5', borderBottom: '1px solid #e0e0e0' }}>{v.name}</div>
-                    {v.locations.map(loc => (
-                      <button
-                        key={loc.id}
-                        onClick={() => handleCopyLayout(v.id, loc.id)}
-                        disabled={v.id === selectedVenue.id && loc.id === selectedLocation.id}
-                        style={{ display: 'block', width: '100%', padding: '6px 12px 6px 24px', border: 'none', backgroundColor: 'transparent', cursor: v.id === selectedVenue.id && loc.id === selectedLocation.id ? 'default' : 'pointer', textAlign: 'left', fontSize: '12px', color: v.id === selectedVenue.id && loc.id === selectedLocation.id ? '#aaa' : '#333' }}
-                      >
-                        {loc.name}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
+            {showOverflowMenu && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={() => setShowOverflowMenu(false)} />
+                <div className="omenu glass" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 200, borderRadius: theme.radius, padding: '6px 0', zIndex: 300, animation: 'fadeIn 150ms ease' }}>
+                  <button onClick={() => { setShowOverflowMenu(false); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (ev) => { const file = (ev.target as HTMLInputElement).files?.[0]; if (file) setPanoramaImage(URL.createObjectURL(file)); }; input.click(); }}>
+                    Load Panorama
+                  </button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleImportModel(); }}>
+                    Import 3D
+                  </button>
+                  <hr />
+                  <button onClick={() => { setShowOverflowMenu(false); handleExport(); }}>
+                    Export PNG
+                  </button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleExportFloorPlan(); }}>
+                    Floor Plan
+                  </button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleExportReport(); }}>
+                    Report
+                  </button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleShare(); }}>
+                    Share
+                  </button>
+                  <hr />
+                  <button onClick={() => { setShowOverflowMenu(false); setShowGuestPanel(prev => !prev); }}>
+                    Guests {showGuestPanel ? '✓' : ''}
+                  </button>
+                  <button onClick={() => { setShowOverflowMenu(false); setShowMiniMap(prev => !prev); }}>
+                    Floor Plan View {showMiniMap ? '✓' : ''}
+                  </button>
+                  <button onClick={() => { setShowOverflowMenu(false); setShowCopyFrom(true); }}>
+                    Copy From…
+                  </button>
+                  <hr />
+                  <button onClick={() => { setShowOverflowMenu(false); setFurniture([]); }}>
+                    Clear All
+                  </button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleReset(); }} style={{ color: theme.danger }}>
+                    Reset
+                  </button>
+                </div>
+              </>
             )}
           </div>
         </div>
-      </div>
+      </header>
 
-      <div style={{ flex: 1, display: 'flex', position: 'relative', overflow: 'hidden', minHeight: 0 }}>
-        <div style={{ flex: 1, position: 'relative', backgroundColor: '#1a1a1a' }} onDragOver={handleDragOver} onDrop={handleDrop}>
-          <DynamicCanvas
-            furniture={furniture}
-            panoramaImage={panoramaImage}
-            onFurnitureDrop={handleFurnitureDrop}
-            isPlacing={isDragging && selectedTemplate !== null}
-            furnitureTemplates={furnitureTemplates}
-            floorLevelY={floorLevelY}
-            selectedFurnitureIds={selectedItemIds}
-            onFurnitureSelect={(id: string | null, shiftKey?: boolean) => {
-              if (id === null) {
-                setSelectedItemIds([])
-              } else if (shiftKey) {
-                setSelectedItemIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-              } else {
-                setSelectedItemIds([id])
-              }
-            }}
-            onFurnitureMove={(id: string, pos: [number, number, number]) => {
-              updateFurniture(prev => prev.map(item => item.id === id ? { ...item, position: pos } : item))
-            }}
-            snapToGrid={snapToGrid}
-            gridSize={0.5}
-            roomDimensions={roomDimensions}
-            roomColor={locationColors[selectedLocation.id] || '#336699'}
-            showLabels={showLabels}
-            measureMode={measureMode}
-            onMeasureComplete={(dist: number) => setLastMeasurement(dist)}
-            zoomToFitTrigger={zoomToFitTrigger}
-            collidingIds={collidingIds}
-          />
-          {isDragging && selectedTemplate && (
-            <div style={{ position: 'absolute', top: '20px', left: '50%', transform: 'translateX(-50%)', color: '#003366', textAlign: 'center', backgroundColor: '#FFC72C', padding: '12px 24px', borderRadius: '8px', zIndex: 100, pointerEvents: 'none', fontWeight: 600, boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
-              Click on the floor to place {selectedTemplate.name}
-            </div>
-          )}
-          {furniture.length === 0 && !isDragging && (
-            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: '#fff', textAlign: 'center', backgroundColor: 'rgba(0, 51, 102, 0.9)', padding: '24px 32px', borderRadius: '8px', maxWidth: '320px', border: '2px solid #FFC72C' }}>
-              <p style={{ margin: 0, fontSize: '16px' }}>Click furniture from the sidebar to place it</p>
-              <p style={{ fontSize: '14px', marginTop: '12px', opacity: 0.9 }}>Use mouse to rotate, zoom, and pan the view</p>
-            </div>
-          )}
-        </div>
-
-        <div style={{ width: '260px', backgroundColor: '#fff', borderLeft: '1px solid #ddd', padding: '16px', overflowY: 'auto', boxShadow: '-2px 0 8px rgba(0,0,0,0.06)' }}>
-          <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '2px solid #003366' }}>
-            <div style={{ color: '#666', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Space</div>
-            <div style={{ color: '#003366', fontWeight: 700, fontSize: '15px' }}>{selectedVenue.name}</div>
-            <div style={{ color: '#555', fontSize: '14px' }}>{selectedLocation.name}</div>
-            <div style={{ color: '#777', fontSize: '12px', marginTop: '4px' }}>{roomDimensions.width}m × {roomDimensions.depth}m</div>
+      {/* ── LEFT PANEL: Furniture Library ── */}
+      {!showFurniturePanel && (
+        <button className="ptab" onClick={() => setShowFurniturePanel(true)}>
+          ☰
+        </button>
+      )}
+      {showFurniturePanel && (
+        <aside
+          className="glass"
+          style={{
+            position: 'absolute', top: 60, left: 12, bottom: 68, width: 240, zIndex: 100,
+            borderRadius: theme.radius, padding: 0, display: 'flex', flexDirection: 'column',
+            overflow: 'hidden', animation: 'slideLeft 200ms ease',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px 8px', borderBottom: `1px solid ${theme.border}` }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>Furniture</span>
+            <button
+              onClick={() => setShowFurniturePanel(false)}
+              style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: theme.textSecondary, lineHeight: 1, padding: 0 }}
+            >×</button>
           </div>
-          <h3 style={{ color: '#003366', marginTop: 0, marginBottom: '12px', fontSize: '16px', fontWeight: 600 }}>Furniture Library</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {furnitureTemplates.map((template) => (
-              <div
-                key={template.id}
-                onClick={() => handleTemplateSelect(template)}
-                style={{
-                  padding: '12px',
-                  backgroundColor: selectedTemplate?.id === template.id ? '#003366' : '#f5f5f5',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  border: selectedTemplate?.id === template.id ? '2px solid #FFC72C' : '1px solid #e0e0e0',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '24px' }}>{template.icon}</span>
-                  <div>
-                    <div style={{ color: selectedTemplate?.id === template.id ? '#fff' : '#333', fontWeight: 600, fontSize: '14px' }}>{template.name}</div>
-                    <div style={{ color: selectedTemplate?.id === template.id ? 'rgba(255,255,255,0.8)' : '#666', fontSize: '12px' }}>{template.dimensions.width}m × {template.dimensions.depth}m</div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          {furniture.length > 0 && (
-            <div style={{ marginTop: '16px', padding: '10px 12px', backgroundColor: '#edf2f7', borderRadius: '6px', border: '1px solid #cbd5e0' }}>
-              <div style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#666', marginBottom: '6px', fontWeight: 600 }}>Capacity</div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
-                <span style={{ color: '#003366', fontWeight: 700 }}>{capacityInfo.totalSeats} seats</span>
-                <span style={{ color: '#555' }}>{capacityInfo.tableCount} tables</span>
-                <span style={{ color: '#555' }}>{capacityInfo.chairCount} chairs</span>
-              </div>
-            </div>
-          )}
-          {furniture.length > 0 && (
-            <div style={{ marginTop: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h3 style={{ color: '#003366', margin: 0, fontSize: '16px', fontWeight: 600 }}>Placed Items ({furniture.length})</h3>
-                <div style={{ display: 'flex', gap: '4px' }}>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
+            {/* Layout Templates */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px', color: theme.textSecondary, fontWeight: 600, marginBottom: 6, padding: '0 4px' }}>Templates</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                {layoutTemplatePatterns.map(t => (
                   <button
-                    onClick={() => setSelectedItemIds(furniture.map(i => i.id))}
-                    style={{ padding: '3px 8px', backgroundColor: '#003366', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}
+                    key={t.id}
+                    onClick={() => handleApplyTemplate(t)}
+                    title={t.description}
+                    style={{ padding: '4px 10px', backgroundColor: 'rgba(0,51,102,0.06)', border: '1px solid transparent', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600, color: theme.accent, transition: 'all 150ms' }}
                   >
-                    Select All
+                    {t.name}
                   </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Furniture Grid */}
+            <div style={{ borderTop: `1px solid ${theme.border}`, paddingTop: 8 }}>
+              <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px', color: theme.textSecondary, fontWeight: 600, marginBottom: 6, padding: '0 4px' }}>Items</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                {furnitureTemplates.map((template) => (
+                  <div
+                    key={template.id}
+                    className={`fcard${selectedTemplate?.id === template.id ? ' sel' : ''}`}
+                    onClick={() => handleTemplateSelect(template)}
+                  >
+                    <span style={{ fontSize: 20, lineHeight: 1 }}>{template.icon}</span>
+                    <span style={{ fontSize: 11, fontWeight: 500, color: theme.text, lineHeight: 1.2 }}>{template.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Capacity + Compliance footer */}
+          {furniture.length > 0 && (
+            <div style={{ padding: '8px 14px', borderTop: `1px solid ${theme.border}` }}>
+              <div style={{ fontSize: 11, display: 'flex', justifyContent: 'space-between', color: theme.textSecondary, marginBottom: hasComplianceIssues ? 4 : 0 }}>
+                <span style={{ fontWeight: 700, color: theme.accent }}>{capacityInfo.totalSeats} seats</span>
+                <span>{capacityInfo.tableCount} tbl</span>
+                <span>{capacityInfo.chairCount} chr</span>
+                <span style={{ fontWeight: 700, color: theme.accent }}>${capacityInfo.totalCost}</span>
+              </div>
+              {hasComplianceIssues ? (
+                <div style={{ fontSize: 10, color: theme.danger, fontWeight: 600 }}>
+                  {complianceInfo.overCapacity && <div>⚠ Over capacity ({complianceInfo.currentOccupancy}/{complianceInfo.maxOccupancy})</div>}
+                  {complianceInfo.aisleViolations > 0 && <div>⚠ {complianceInfo.aisleViolations} narrow aisle(s)</div>}
+                  {complianceInfo.wallViolations > 0 && <div>⚠ {complianceInfo.wallViolations} outside room</div>}
+                </div>
+              ) : (
+                <div style={{ fontSize: 10, color: theme.success, fontWeight: 600 }}>✓ Compliant</div>
+              )}
+            </div>
+          )}
+        </aside>
+      )}
+
+      {/* ── RIGHT PANEL: Properties (contextual) ── */}
+      {selectedItemIds.length > 0 && (() => {
+        const selectedItems = furniture.filter(item => selectedItemIds.includes(item.id))
+        const singleItem = selectedItems.length === 1 ? selectedItems[0] : null
+        const singleTemplate = singleItem ? furnitureTemplates.find(t => singleItem.id.startsWith(t.id + '-') || singleItem.id === t.id) : null
+
+        return (
+          <aside
+            className="glass"
+            style={{
+              position: 'absolute', top: 60, right: 12, width: 260, zIndex: 100,
+              borderRadius: theme.radius, padding: 14, maxHeight: 'calc(100vh - 130px)',
+              overflowY: 'auto', animation: 'slideRight 200ms ease',
+            }}
+          >
+            {singleItem ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div>
+                    {tableNumbers[singleItem.id] !== undefined && (
+                      <span style={{ display: 'inline-block', backgroundColor: theme.accentLight, color: theme.accent, padding: '1px 6px', borderRadius: 4, fontSize: 10, fontWeight: 700, marginRight: 6 }}>
+                        #{tableNumbers[singleItem.id]}
+                      </span>
+                    )}
+                    <span style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>{singleTemplate?.name || 'Unknown'}</span>
+                  </div>
+                  <button
+                    onClick={() => handleDeleteFurniture(singleItem.id)}
+                    style={{ padding: '4px 8px', backgroundColor: theme.danger, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                  >×</button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 8 }}>
+                  {(['X', 'Y', 'Z'] as const).map((label, axis) => (
+                    <div key={label}>
+                      <label style={{ display: 'block', color: theme.textSecondary, fontSize: 10, marginBottom: 2 }}>{label}</label>
+                      <input
+                        className="pinput"
+                        type="text"
+                        inputMode="decimal"
+                        value={getPositionInputValue(singleItem, axis as 0 | 1 | 2)}
+                        onChange={(e) => setPositionInputValue(singleItem.id, axis as 0 | 1 | 2, e.target.value)}
+                        onBlur={(e) => commitPositionInput(singleItem.id, axis as 0 | 1 | 2, e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && commitPositionInput(singleItem.id, axis as 0 | 1 | 2, (e.target as HTMLInputElement).value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                  <label style={{ color: theme.textSecondary, fontSize: 10, minWidth: 24 }}>Rot°</label>
+                  <input
+                    className="pinput"
+                    type="text"
+                    inputMode="decimal"
+                    value={getRotationInputValue(singleItem)}
+                    onChange={(e) => setRotationInputValue(singleItem.id, e.target.value)}
+                    onBlur={(e) => commitRotationInput(singleItem.id, e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && commitRotationInput(singleItem.id, (e.target as HTMLInputElement).value)}
+                    style={{ width: 56 }}
+                  />
+                  <button
+                    onClick={() => updateFurniture(furniture.map(i => i.id === singleItem.id ? { ...i, rotation: i.rotation + Math.PI / 4 } : i))}
+                    style={{ padding: '4px 8px', backgroundColor: 'rgba(0,51,102,0.08)', color: theme.accent, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
+                  >+45°</button>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ color: theme.textSecondary, fontSize: 10, minWidth: 24 }}>Color</label>
+                  <input
+                    type="color"
+                    value={itemColors[singleItem.id] || '#8B4513'}
+                    onChange={(e) => setItemColors(prev => ({ ...prev, [singleItem.id]: e.target.value }))}
+                    style={{ width: 28, height: 22, padding: 0, border: `1px solid ${theme.border}`, borderRadius: 4, cursor: 'pointer' }}
+                  />
+                  {itemColors[singleItem.id] && (
+                    <button
+                      onClick={() => setItemColors(prev => { const n = { ...prev }; delete n[singleItem.id]; return n })}
+                      style={{ padding: '2px 8px', fontSize: 10, backgroundColor: 'rgba(0,0,0,0.04)', border: 'none', borderRadius: 4, cursor: 'pointer', color: theme.textSecondary }}
+                    >Reset</button>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: 600, fontSize: 14, color: theme.text, marginBottom: 12 }}>
+                  {selectedItems.length} items selected
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <button
+                    onClick={handleDeleteSelected}
+                    style={{ padding: '6px 12px', backgroundColor: theme.danger, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                  >Delete All</button>
+                  <button
+                    onClick={handleDuplicate}
+                    style={{ padding: '6px 12px', backgroundColor: 'rgba(0,51,102,0.08)', color: theme.accent, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                  >Duplicate</button>
                   <button
                     onClick={() => setSelectedItemIds([])}
-                    style={{ padding: '3px 8px', backgroundColor: '#e2e8f0', color: '#333', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px', fontWeight: 600 }}
-                  >
-                    Deselect
-                  </button>
+                    style={{ padding: '6px 12px', backgroundColor: 'rgba(0,0,0,0.04)', color: theme.textSecondary, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                  >Deselect</button>
                 </div>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {furniture.map((item) => {
-                  const template = furnitureTemplates.find(t => item.id.startsWith(t.id + '-'))
-                  return (
-                    <div key={item.id} style={{ padding: '10px', backgroundColor: '#f9f9f9', borderRadius: '4px', border: '1px solid #e0e0e0', borderLeft: selectedItemIds.includes(item.id) ? '3px solid #003366' : 'none' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <div style={{ color: '#333', fontSize: '14px', fontWeight: 600 }}>{template?.name || 'Unknown'}</div>
-                        <div style={{ display: 'flex', gap: '5px' }}>
-                          <button onClick={() => handleDeleteFurniture(item.id)} style={{ padding: '4px 8px', backgroundColor: '#c53030', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '12px', fontWeight: 600 }} title="Remove">×</button>
-                        </div>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', alignItems: 'center' }}>
-                        <div>
-                          <label style={{ display: 'block', color: '#666', fontSize: '10px', marginBottom: '2px' }}>X</label>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={getPositionInputValue(item, 0)}
-                            onChange={(e) => setPositionInputValue(item.id, 0, e.target.value)}
-                            onBlur={(e) => commitPositionInput(item.id, 0, e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && commitPositionInput(item.id, 0, (e.target as HTMLInputElement).value)}
-                            placeholder="0"
-                            style={{ width: '100%', padding: '4px 6px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '3px', boxSizing: 'border-box' }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', color: '#666', fontSize: '10px', marginBottom: '2px' }}>Y</label>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={getPositionInputValue(item, 1)}
-                            onChange={(e) => setPositionInputValue(item.id, 1, e.target.value)}
-                            onBlur={(e) => commitPositionInput(item.id, 1, e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && commitPositionInput(item.id, 1, (e.target as HTMLInputElement).value)}
-                            placeholder="0"
-                            style={{ width: '100%', padding: '4px 6px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '3px', boxSizing: 'border-box' }}
-                          />
-                        </div>
-                        <div>
-                          <label style={{ display: 'block', color: '#666', fontSize: '10px', marginBottom: '2px' }}>Z</label>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={getPositionInputValue(item, 2)}
-                            onChange={(e) => setPositionInputValue(item.id, 2, e.target.value)}
-                            onBlur={(e) => commitPositionInput(item.id, 2, e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && commitPositionInput(item.id, 2, (e.target as HTMLInputElement).value)}
-                            placeholder="0"
-                            style={{ width: '100%', padding: '4px 6px', fontSize: '12px', border: '1px solid #ccc', borderRadius: '3px', boxSizing: 'border-box' }}
-                          />
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
-                        <label style={{ color: '#666', fontSize: '10px' }}>Rot°</label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={getRotationInputValue(item)}
-                          onChange={(e) => setRotationInputValue(item.id, e.target.value)}
-                          onBlur={(e) => commitRotationInput(item.id, e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && commitRotationInput(item.id, (e.target as HTMLInputElement).value)}
-                          style={{ width: '50px', padding: '3px 5px', fontSize: '11px', border: '1px solid #ccc', borderRadius: '3px' }}
-                        />
-                        <button onClick={() => updateFurniture(furniture.map(i => i.id === item.id ? { ...i, rotation: i.rotation + Math.PI / 4 } : i))} style={{ padding: '3px 6px', backgroundColor: '#003366', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px' }} title="Rotate 45°">+45°</button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-          <div style={{ marginTop: '16px', padding: '10px', backgroundColor: '#f0f0f0', borderRadius: '4px', fontSize: '10px', color: '#666' }}>
-            <div style={{ fontWeight: 600, marginBottom: '4px', color: '#003366' }}>Shortcuts</div>
-            <div>Ctrl+Z — Undo</div>
-            <div>Ctrl+Shift+Z — Redo</div>
-            <div>Ctrl+D — Duplicate</div>
-            <div>Delete — Remove selected</div>
-            <div>Arrow keys — Nudge</div>
-            <div>Escape — Deselect</div>
-            <div>Shift+Click — Multi-select</div>
-          </div>
-        </div>
-      </div>
+              </>
+            )}
+          </aside>
+        )
+      })()}
 
+      {/* ── BOTTOM TOOL STRIP ── */}
       <div
+        className="glass"
         style={{
-          flexShrink: 0,
-          height: '132px',
-          backgroundColor: '#fff',
-          borderTop: '2px solid #003366',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '20px',
-          padding: '0 16px 0 20px',
-          boxShadow: '0 -2px 12px rgba(0,0,0,0.08)'
+          position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 150, height: 44, borderRadius: 22, padding: '0 8px',
+          display: 'flex', alignItems: 'center', gap: 2,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <button className={`tbtn${snapToGrid ? ' on' : ''}`} data-tip="Snap to Grid" onClick={() => setSnapToGrid(prev => !prev)}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+        </button>
+        <button className={`tbtn${showLabels ? ' on' : ''}`} data-tip="Labels" onClick={() => setShowLabels(prev => !prev)} style={{ fontSize: 13, fontWeight: 700 }}>
+          Aa
+        </button>
+        <button className={`tbtn${measureMode ? ' on' : ''}`} data-tip="Measure" onClick={() => setMeasureMode(prev => !prev)}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 8h12M2 6v4M14 6v4M5 8v2M8 8v3M11 8v2"/></svg>
+        </button>
+        {lastMeasurement !== null && (
+          <span style={{ fontSize: 12, fontWeight: 600, color: theme.accent, padding: '0 4px', background: 'rgba(0,51,102,0.06)', borderRadius: 4 }}>{lastMeasurement.toFixed(2)}m</span>
+        )}
+        <div style={{ width: 1, height: 20, backgroundColor: theme.border, margin: '0 4px' }} />
+        <button className={`tbtn${walkthroughMode ? ' on' : ''}`} data-tip="Walkthrough" onClick={() => setWalkthroughMode(prev => !prev)}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2"/></svg>
+        </button>
+        <button className="tbtn" data-tip="Zoom to Fit" onClick={() => setZoomToFitTrigger(prev => prev + 1)}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 6V3a1 1 0 011-1h3M10 2h3a1 1 0 011 1v3M14 10v3a1 1 0 01-1 1h-3M6 14H3a1 1 0 01-1-1v-3"/></svg>
+        </button>
+        <div style={{ width: 1, height: 20, backgroundColor: theme.border, margin: '0 4px' }} />
+        <button className="tbtn" data-tip="Undo" onClick={handleUndo} disabled={historyIndex <= 0}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M4 6l-3 3 3 3"/><path d="M1 9h10a4 4 0 000-8H8"/></svg>
+        </button>
+        <button className="tbtn" data-tip="Redo" onClick={handleRedo} disabled={historyIndex >= history.length - 1}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 6l3 3-3 3"/><path d="M15 9H5a4 4 0 010-8h3"/></svg>
+        </button>
+        {collidingIds.length > 0 && (
+          <div style={{ padding: '3px 8px', backgroundColor: theme.danger, color: '#fff', borderRadius: 10, fontSize: 11, fontWeight: 600, marginLeft: 4 }}>
+            ⚠ {collidingIds.length}
+          </div>
+        )}
+      </div>
+
+      {/* ── GUEST PANEL ── */}
+      {showGuestPanel && (
+        <aside
+          className="glass"
+          style={{
+            position: 'absolute', top: 60, left: showFurniturePanel ? 264 : 12, width: 260, zIndex: 120,
+            borderRadius: theme.radius, maxHeight: 'calc(100vh - 130px)', overflow: 'hidden',
+            display: 'flex', flexDirection: 'column', animation: 'slideLeft 200ms ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px 8px', borderBottom: `1px solid ${theme.border}` }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>Guests ({guests.length})</span>
+            <button onClick={() => setShowGuestPanel(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: theme.textSecondary, lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+          <div style={{ padding: '8px 14px', display: 'flex', gap: 6 }}>
+            <button onClick={handleImportGuests} style={{ flex: 1, padding: 6, backgroundColor: theme.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Import CSV</button>
+            <button onClick={() => { const name = prompt('Guest name:'); if (name) handleAddGuest(name) }} style={{ flex: 1, padding: 6, backgroundColor: theme.accentLight, color: theme.accent, border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>Add</button>
+          </div>
+          <div style={{ padding: '0 14px 4px', fontSize: 10, color: theme.textSecondary }}>
+            {Object.values(guestAssignments).flat().length} / {guests.length} assigned
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px 10px' }}>
+            {guests.map(guest => {
+              const assignedTo = Object.entries(guestAssignments).find(([, gs]) => gs.includes(guest))
+              const assignedTableNum = assignedTo ? tableNumbers[assignedTo[0]] : undefined
+              return (
+                <div key={guest} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 8px', backgroundColor: assignedTo ? 'rgba(0,51,102,0.04)' : 'transparent', borderRadius: 6, marginBottom: 2 }}>
+                  <span style={{ flex: 1, fontSize: 11, color: theme.text }}>{guest}</span>
+                  {assignedTableNum !== undefined && (
+                    <span style={{ fontSize: 9, color: theme.accent, fontWeight: 600 }}>T#{assignedTableNum}</span>
+                  )}
+                  <select
+                    value={assignedTo?.[0] ?? ''}
+                    onChange={(e) => e.target.value ? handleAssignGuest(guest, e.target.value) : handleUnassignGuest(guest)}
+                    style={{ width: 60, padding: 2, fontSize: 10, border: `1px solid ${theme.border}`, borderRadius: 4, background: 'rgba(255,255,255,0.6)' }}
+                  >
+                    <option value="">--</option>
+                    {furniture.filter(i => { const t = furnitureTemplates.find(tpl => i.id.startsWith(tpl.id + '-')); return t && t.type === 'table' }).map(table => (
+                      <option key={table.id} value={table.id}>#{tableNumbers[table.id]}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => handleRemoveGuest(guest)} style={{ background: 'none', border: 'none', color: theme.danger, cursor: 'pointer', fontSize: 14, padding: '0 2px', lineHeight: 1 }}>×</button>
+                </div>
+              )
+            })}
+          </div>
+        </aside>
+      )}
+
+      {/* ── MINI MAP + FLOOR LEVEL ── */}
+      {showMiniMap && (
+        <div
+          className="glass"
+          style={{
+            position: 'absolute', bottom: 68, left: 12, zIndex: 120,
+            borderRadius: theme.radius, padding: 10, animation: 'fadeIn 200ms ease',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: theme.text }}>Floor Plan</span>
+            <button onClick={() => setShowMiniMap(false)} style={{ background: 'none', border: 'none', fontSize: 14, cursor: 'pointer', color: theme.textSecondary, lineHeight: 1, padding: 0 }}>×</button>
+          </div>
           <CADView
             furniture={furniture}
             onFurnitureMove={handleFurnitureMove}
             roomDimensions={roomDimensions}
-            width={420}
-            height={110}
+            tableNumbers={tableNumbers}
+            width={240}
+            height={180}
           />
-          <div style={{ color: '#666', fontSize: '12px', maxWidth: '140px' }}>
-            <strong style={{ color: '#003366' }}>Floor plan</strong> — Drag items here to move them on the floor. Adjust floor level below so they align with the room.
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <label style={{ fontSize: 10, color: theme.textSecondary, fontWeight: 600 }}>Floor Y</label>
+            <input
+              type="range"
+              min={-1}
+              max={1}
+              step={0.05}
+              value={floorLevelY}
+              onChange={(e) => setFloorLevelY(Number(e.target.value))}
+              style={{ flex: 1, accentColor: theme.accent }}
+            />
+            <span style={{ fontSize: 10, color: theme.text, minWidth: 28, textAlign: 'right' }}>{floorLevelY.toFixed(2)}</span>
           </div>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '16px', minWidth: '280px', flexWrap: 'wrap' }}>
-          <div>
-            <label style={{ display: 'block', color: '#003366', fontSize: '12px', fontWeight: 600, marginBottom: '4px' }}>Floor level (Y)</label>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <input
-                type="range"
-                min={-1}
-                max={1}
-                step={0.05}
-                value={floorLevelY}
-                onChange={(e) => setFloorLevelY(Number(e.target.value))}
-                style={{ width: '120px', accentColor: '#003366' }}
-              />
-              <span style={{ color: '#333', fontSize: '12px', minWidth: '36px' }}>{floorLevelY.toFixed(2)}</span>
+      )}
+
+      {/* ── COPY FROM PANEL ── */}
+      {showCopyFrom && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 199, background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowCopyFrom(false)} />
+          <div
+            className="glass"
+            style={{
+              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              zIndex: 200, minWidth: 280, borderRadius: theme.radius, overflow: 'hidden',
+              animation: 'fadeIn 200ms ease',
+            }}
+          >
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>Copy Layout From</span>
+              <button onClick={() => setShowCopyFrom(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: theme.textSecondary, lineHeight: 1, padding: 0 }}>×</button>
+            </div>
+            <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+              {venues.map(v => (
+                <div key={v.id}>
+                  <div style={{ padding: '6px 16px', fontWeight: 600, color: theme.accent, fontSize: 11, backgroundColor: 'rgba(0,51,102,0.03)', borderBottom: `1px solid ${theme.border}` }}>{v.name}</div>
+                  {v.locations.map(loc => (
+                    <button
+                      key={loc.id}
+                      onClick={() => handleCopyLayout(v.id, loc.id)}
+                      disabled={v.id === selectedVenue.id && loc.id === selectedLocation.id}
+                      style={{
+                        display: 'block', width: '100%', padding: '8px 16px 8px 28px', border: 'none',
+                        backgroundColor: 'transparent', textAlign: 'left', fontSize: 12,
+                        color: v.id === selectedVenue.id && loc.id === selectedLocation.id ? '#aaa' : theme.text,
+                        cursor: v.id === selectedVenue.id && loc.id === selectedLocation.id ? 'default' : 'pointer',
+                        transition: 'background 150ms',
+                      }}
+                    >
+                      {loc.name}
+                    </button>
+                  ))}
+                </div>
+              ))}
             </div>
           </div>
-          <div style={{ fontSize: '12px', color: '#666' }}>
-            Room: {roomDimensions.width}m × {roomDimensions.depth}m
-          </div>
-          <div style={{ fontSize: '12px', color: '#003366', fontWeight: 600 }}>
-            {capacityInfo.totalSeats} seats
-          </div>
-          <button
-            onClick={() => setSnapToGrid(prev => !prev)}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: snapToGrid ? '#003366' : '#e2e8f0',
-              color: snapToGrid ? '#fff' : '#333',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 600,
-              transition: 'all 0.2s',
-            }}
-          >
-            Snap {snapToGrid ? 'ON' : 'OFF'}
-          </button>
-          <button
-            onClick={() => setShowLabels(prev => !prev)}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: showLabels ? '#003366' : '#e2e8f0',
-              color: showLabels ? '#fff' : '#333',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 600,
-              transition: 'all 0.2s',
-            }}
-          >
-            Labels {showLabels ? 'ON' : 'OFF'}
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <button
-              onClick={() => setMeasureMode(prev => !prev)}
-              style={{
-                padding: '6px 12px',
-                backgroundColor: measureMode ? '#003366' : '#e2e8f0',
-                color: measureMode ? '#fff' : '#333',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: 600,
-                transition: 'all 0.2s',
-              }}
-            >
-              Measure {measureMode ? 'ON' : 'OFF'}
-            </button>
-            {lastMeasurement !== null && (
-              <span style={{ fontSize: '12px', color: '#003366', fontWeight: 600 }}>{lastMeasurement.toFixed(2)}m</span>
-            )}
-          </div>
-          <button
-            onClick={() => setZoomToFitTrigger(prev => prev + 1)}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: '#e2e8f0',
-              color: '#333',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: 600,
-            }}
-          >
-            Zoom Fit
-          </button>
-          <button
-            onClick={handleUndo}
-            disabled={historyIndex <= 0}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: historyIndex <= 0 ? '#e2e8f0' : '#003366',
-              color: historyIndex <= 0 ? '#aaa' : '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: historyIndex <= 0 ? 'default' : 'pointer',
-              fontSize: '12px',
-              fontWeight: 600,
-            }}
-          >
-            Undo
-          </button>
-          <button
-            onClick={handleRedo}
-            disabled={historyIndex >= history.length - 1}
-            style={{
-              padding: '6px 12px',
-              backgroundColor: historyIndex >= history.length - 1 ? '#e2e8f0' : '#003366',
-              color: historyIndex >= history.length - 1 ? '#aaa' : '#fff',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: historyIndex >= history.length - 1 ? 'default' : 'pointer',
-              fontSize: '12px',
-              fontWeight: 600,
-            }}
-          >
-            Redo
-          </button>
-          {collidingIds.length > 0 && (
-            <div style={{ padding: '4px 8px', backgroundColor: '#c53030', color: '#fff', borderRadius: '4px', fontSize: '11px', fontWeight: 600 }}>
-              ⚠ {collidingIds.length} overlapping
-            </div>
-          )}
-        </div>
-      </div>
+        </>
+      )}
     </div>
   )
 }

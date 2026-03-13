@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect, useState, useCallback, useMemo, Suspense } from 'react'
 import { Canvas, useThree, ThreeEvent } from '@react-three/fiber'
-import { OrbitControls, PerspectiveCamera, useTexture, Html } from '@react-three/drei'
+import { OrbitControls, PerspectiveCamera, useTexture, Html, useGLTF } from '@react-three/drei'
 import * as THREE from 'three'
 
 // Types
@@ -58,6 +58,11 @@ interface Scene3DProps {
   onMeasureComplete?: (distance: number, points: [[number,number,number],[number,number,number]]) => void
   zoomToFitTrigger?: number
   collidingIds?: string[]
+  tableNumbers?: Record<string, number>
+  guestAssignments?: Record<string, string[]>
+  walkthroughMode?: boolean
+  itemColors?: Record<string, string>
+  customModels?: Array<{ id: string; url: string; position: [number,number,number]; rotation: number; scale: number }>
 }
 
 // 3D Scene Components
@@ -469,7 +474,10 @@ function Furniture3D({
   onSelect,
   onDragStart,
   showLabel,
-  labelText
+  labelText,
+  tableNumber,
+  guests,
+  colorOverride
 }: {
   item: FurnitureItem
   template: FurnitureTemplate
@@ -480,6 +488,9 @@ function Furniture3D({
   onDragStart?: () => void
   showLabel?: boolean
   labelText?: string
+  tableNumber?: number
+  guests?: string[]
+  colorOverride?: string
 }) {
   const meshRef = useRef<THREE.Group>(null)
   const contentRef = useRef<THREE.Group>(null)
@@ -588,7 +599,13 @@ function Furniture3D({
           <lineBasicMaterial color="#ff4444" linewidth={2} transparent opacity={0.6} />
         </lineSegments>
       )}
-      {showLabel && labelText && (
+      {colorOverride && (
+        <mesh>
+          <boxGeometry args={[scaledWidth * 1.01, scaledHeight * 1.01, scaledDepth * 1.01]} />
+          <meshBasicMaterial color={colorOverride} transparent opacity={0.35} depthWrite={false} />
+        </mesh>
+      )}
+      {showLabel && (
         <Html
           position={[0, scaledHeight + 0.3, 0]}
           center
@@ -598,14 +615,22 @@ function Furniture3D({
           <div style={{
             background: 'rgba(0,51,102,0.85)',
             color: '#fff',
-            padding: '2px 8px',
+            padding: '3px 8px',
             borderRadius: '4px',
             fontSize: '11px',
             fontWeight: 600,
             whiteSpace: 'nowrap',
-            border: '1px solid rgba(255,199,44,0.5)'
+            border: '1px solid rgba(255,199,44,0.5)',
+            textAlign: 'center',
+            maxWidth: '150px'
           }}>
-            {labelText}
+            {tableNumber !== undefined && <div style={{ color: '#FFC72C', fontSize: '13px', fontWeight: 700 }}>#{tableNumber}</div>}
+            {labelText && <div>{labelText}</div>}
+            {guests && guests.length > 0 && (
+              <div style={{ fontSize: '9px', opacity: 0.85, marginTop: '2px', whiteSpace: 'normal', lineHeight: '1.3' }}>
+                {guests.slice(0, 4).join(', ')}{guests.length > 4 ? ` +${guests.length - 4}` : ''}
+              </div>
+            )}
           </div>
         </Html>
       )}
@@ -835,6 +860,88 @@ function ZoomToFit({ trigger, furniture, roomDimensions }: {
   return null
 }
 
+function WalkthroughController({ active }: { active: boolean }) {
+  const { camera, gl } = useThree()
+  const keysRef = useRef<Set<string>>(new Set())
+  const yawRef = useRef(0)
+  const pitchRef = useRef(0)
+
+  useEffect(() => {
+    if (!active) return
+
+    camera.position.set(0, 1.7, 0)
+    yawRef.current = 0
+    pitchRef.current = 0
+
+    const handleKeyDown = (e: KeyboardEvent) => { keysRef.current.add(e.key.toLowerCase()) }
+    const handleKeyUp = (e: KeyboardEvent) => { keysRef.current.delete(e.key.toLowerCase()) }
+
+    let locked = false
+    const handleClick = () => {
+      gl.domElement.requestPointerLock()
+    }
+    const handleLockChange = () => {
+      locked = document.pointerLockElement === gl.domElement
+    }
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!locked) return
+      yawRef.current -= e.movementX * 0.002
+      pitchRef.current = Math.max(-Math.PI / 3, Math.min(Math.PI / 3, pitchRef.current - e.movementY * 0.002))
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    gl.domElement.addEventListener('click', handleClick)
+    document.addEventListener('pointerlockchange', handleLockChange)
+    document.addEventListener('mousemove', handleMouseMove)
+
+    let animId: number
+    const speed = 0.08
+    const animate = () => {
+      animId = requestAnimationFrame(animate)
+      const keys = keysRef.current
+      const forward = new THREE.Vector3(-Math.sin(yawRef.current), 0, -Math.cos(yawRef.current))
+      const right = new THREE.Vector3(Math.cos(yawRef.current), 0, -Math.sin(yawRef.current))
+
+      if (keys.has('w')) camera.position.addScaledVector(forward, speed)
+      if (keys.has('s')) camera.position.addScaledVector(forward, -speed)
+      if (keys.has('a')) camera.position.addScaledVector(right, -speed)
+      if (keys.has('d')) camera.position.addScaledVector(right, speed)
+
+      camera.position.y = 1.7
+
+      const euler = new THREE.Euler(pitchRef.current, yawRef.current, 0, 'YXZ')
+      camera.quaternion.setFromEuler(euler)
+    }
+    animate()
+
+    return () => {
+      cancelAnimationFrame(animId)
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      gl.domElement.removeEventListener('click', handleClick)
+      document.removeEventListener('pointerlockchange', handleLockChange)
+      document.removeEventListener('mousemove', handleMouseMove)
+      if (document.pointerLockElement === gl.domElement) document.exitPointerLock()
+    }
+  }, [active, camera, gl])
+
+  return null
+}
+
+function CustomModel({ url, position, rotation, scale: s }: { url: string; position: [number,number,number]; rotation: number; scale: number }) {
+  const { scene } = useGLTF(url)
+  const cloned = useMemo(() => scene.clone(), [scene])
+  return (
+    <primitive
+      object={cloned}
+      position={position}
+      rotation={[0, rotation, 0]}
+      scale={s}
+    />
+  )
+}
+
 function Scene3D({
   furniture,
   panoramaImage,
@@ -854,7 +961,12 @@ function Scene3D({
   measureMode,
   onMeasureComplete,
   zoomToFitTrigger,
-  collidingIds
+  collidingIds,
+  tableNumbers = {},
+  guestAssignments = {},
+  walkthroughMode,
+  itemColors = {},
+  customModels = []
 }: Scene3DProps) {
   const [isDragging, setIsDragging] = useState(false)
 
@@ -885,7 +997,7 @@ function Scene3D({
         enableRotate={true}
         minDistance={0.5}
         maxDistance={20}
-        enabled={!isPlacing && !isDragging && !measureMode}
+        enabled={!isPlacing && !isDragging && !measureMode && !walkthroughMode}
       />
       <ambientLight intensity={0.6} />
       <directionalLight position={[5, 5, 5]} intensity={1.2} castShadow />
@@ -941,12 +1053,23 @@ function Scene3D({
             onDragStart={handleDragStart}
             showLabel={showLabels}
             labelText={template.name}
+            tableNumber={tableNumbers[item.id]}
+            guests={guestAssignments[item.id]}
+            colorOverride={itemColors[item.id]}
           />
         )
       })}
 
       <MeasureTool active={measureMode ?? false} onComplete={onMeasureComplete} />
       <ZoomToFit trigger={zoomToFitTrigger} furniture={furniture} roomDimensions={roomDimensions} />
+
+      {walkthroughMode && <WalkthroughController active={walkthroughMode} />}
+
+      {customModels?.map(model => (
+        <Suspense key={model.id} fallback={null}>
+          <CustomModel url={model.url} position={model.position} rotation={model.rotation} scale={model.scale} />
+        </Suspense>
+      ))}
     </>
   )
 }
