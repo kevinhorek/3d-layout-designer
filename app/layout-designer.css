@@ -9,6 +9,26 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+.skip-link {
+  position: absolute;
+  top: -100px;
+  left: 12px;
+  z-index: 10000;
+  padding: 10px 16px;
+  background: #003366;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: top 0.15s ease;
+}
+.skip-link:focus {
+  top: 12px;
+  outline: 2px solid #FFC72C;
+  outline-offset: 2px;
+}
+
 #__next {
   height: 100%;
   width: 100%;
@@ -210,4 +230,11 @@ html, body {
 .tbtn, .ptab, .layout-editor header button { min-height: 44px; min-width: 44px; }
 @media (pointer: fine) {
   .tbtn, .ptab { min-height: 36px; min-width: 36px; }
+}
+
+/* Print: hide app UI, show only print overlay */
+@media print {
+  .layout-editor { display: none !important; }
+  .print-overlay { position: fixed !important; inset: 0 !important; background: #fff !important; }
+  .print-overlay .no-print { display: none !important; }
 }

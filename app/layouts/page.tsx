@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { listMyLayouts, deleteLayout, duplicateLayout, renameLayout } from '@/app/actions/layouts'
+import { getVenuesWithLocations } from '@/app/actions/venues'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -26,19 +27,35 @@ export default function MyLayoutsPage() {
   const [renameValue, setRenameValue] = useState('')
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [venueLocationNames, setVenueLocationNames] = useState<{ venue: Record<string, string>; location: Record<string, string> }>({ venue: {}, location: {} })
   const router = useRouter()
+
+  useEffect(() => {
+    getVenuesWithLocations().then(({ data }) => {
+      if (!data) return
+      const venue: Record<string, string> = {}
+      const location: Record<string, string> = {}
+      data.forEach((v) => {
+        venue[v.id] = v.name
+        v.locations.forEach((loc) => { location[loc.id] = loc.name })
+      })
+      setVenueLocationNames({ venue, location })
+    })
+  }, [])
 
   const filteredLayouts = useMemo(() => {
     if (!layouts) return []
     const q = searchQuery.trim().toLowerCase()
     if (!q) return layouts
+    const v = venueLocationNames.venue
+    const loc = venueLocationNames.location
     return layouts.filter(
       (l) =>
         l.name.toLowerCase().includes(q) ||
-        l.venue_id.toLowerCase().includes(q) ||
-        l.location_id.toLowerCase().includes(q)
+        (v[l.venue_id] ?? l.venue_id).toLowerCase().includes(q) ||
+        (loc[l.location_id] ?? l.location_id).toLowerCase().includes(q)
     )
-  }, [layouts, searchQuery])
+  }, [layouts, searchQuery, venueLocationNames])
 
   const refreshLayouts = () => {
     listMyLayouts().then(({ error, data }) => {
@@ -250,7 +267,7 @@ export default function MyLayoutsPage() {
                     <>
                       <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 4 }}>{l.name}</div>
                       <div style={{ fontSize: 12, color: theme.textSecondary }}>
-                        {l.venue_id} / {l.location_id} · Updated {new Date(l.updated_at).toLocaleDateString()}
+                        {venueLocationNames.venue[l.venue_id] ?? l.venue_id} / {venueLocationNames.location[l.location_id] ?? l.location_id} · Updated {new Date(l.updated_at).toLocaleDateString()}
                       </div>
                     </>
                   )}

@@ -19,6 +19,7 @@
   "dir": "ltr",
   "prefer_related_applications": false,
   "shortcuts": [
-    { "name": "New Layout", "short_name": "New", "description": "Start a new layout design", "url": "/", "icons": [{ "src": "/icons/icon.svg", "sizes": "192x192" }] }
+    { "name": "New Layout", "short_name": "New", "description": "Start a new layout design", "url": "/?new=1", "icons": [{ "src": "/icons/icon.svg", "sizes": "192x192" }] },
+    { "name": "My Layouts", "short_name": "Layouts", "description": "View and open your saved layouts", "url": "/layouts", "icons": [{ "src": "/icons/icon.svg", "sizes": "192x192" }] }
   ]
 }

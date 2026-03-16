@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
 import { useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { venues, getDefaultVenue, getDefaultLocation, findVenueById, findLocationById, type Venue, type VenueLocation } from './venueData'
+import { venues, getDefaultVenue, getDefaultLocation, findLocationById, type Venue, type VenueLocation } from './venueData'
 import { createClient } from '@/lib/supabase/client'
 import {
   getLayoutByShareToken,
@@ -17,7 +17,11 @@ import {
   duplicateLayout,
 } from './actions/layouts'
 import { saveVersion, listVersions, getVersion } from './actions/versions'
+import { listTemplates, createTemplate } from './actions/templates'
+import { listComments, addComment } from './actions/comments'
+import { getVenuesWithLocations } from './actions/venues'
 import type { LayoutSnapshot } from '@/lib/db/types'
+import { jsPDF } from 'jspdf'
 
 const DynamicCanvas = dynamic(
   () => import('./Scene3D').then(mod => mod.Scene3DCanvas || mod.default),
@@ -328,10 +332,12 @@ function loadLocationLayout(location: VenueLocation): FurnitureItem[] {
 const MAX_HISTORY = 50
 
 function LayoutDesigner3D() {
+  const [venuesList, setVenuesList] = useState<Venue[]>(venues)
   const [selectedVenue, setSelectedVenue] = useState<Venue>(() => getDefaultVenue())
   const [selectedLocation, setSelectedLocation] = useState<VenueLocation>(() =>
     getDefaultLocation(getDefaultVenue())
   )
+  const findVenueById = useCallback((id: string) => venuesList.find((v) => v.id === id), [venuesList])
   const [furniture, setFurniture] = useState<FurnitureItem[]>(() =>
     loadLocationLayout(getDefaultLocation(getDefaultVenue()))
   )
@@ -346,6 +352,13 @@ function LayoutDesigner3D() {
   const [saveConfirmation, setSaveConfirmation] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
+  const [showPrintView, setShowPrintView] = useState(false)
+  const [printImageUrl, setPrintImageUrl] = useState<string | null>(null)
+  const [showTemplatePicker, setShowTemplatePicker] = useState(false)
+  const [showCommentsPanel, setShowCommentsPanel] = useState(false)
+  const [layoutComments, setLayoutComments] = useState<Array<{ id: string; body: string; author_id: string; created_at: string }>>([])
+  const [newCommentBody, setNewCommentBody] = useState('')
+  const [templateList, setTemplateList] = useState<Array<{ id: string; name: string; venue_id: string; location_id: string; snapshot: LayoutSnapshot }>>([])
   const [history, setHistory] = useState<FurnitureItem[][]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [editingRotation, setEditingRotation] = useState<Record<string, string>>({})
@@ -380,6 +393,7 @@ function LayoutDesigner3D() {
   const [duplicateInProgress, setDuplicateInProgress] = useState(false)
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const layoutIdForRealtime = cloudLayoutId ?? sharedLayoutId
@@ -507,7 +521,7 @@ function LayoutDesigner3D() {
           return
         }
         setLoadState('done')
-        const d = data as { snapshot: LayoutSnapshot; venue_id: string; location_id: string; share_role: 'view' | 'edit' }
+        const d = data as { snapshot: LayoutSnapshot; venue_id: string; location_id: string; share_role: 'view' | 'edit'; name?: string }
         const snap = d.snapshot
         const venue = findVenueById(snap.venueId)
         const location = venue && findLocationById(venue, snap.locationId)
@@ -525,6 +539,7 @@ function LayoutDesigner3D() {
         setShareToken(token)
         setShareRole(d.share_role)
         setSharedLayoutId((data as { id: string }).id)
+        setLayoutName(d.name ?? null)
         setHistory([(snap.furniture ?? []).map((f) => ({ ...f, type: f.type as FurnitureItem['type'] }))])
         setHistoryIndex(0)
         lastSavedSnapshotRef.current = {
@@ -590,6 +605,7 @@ function LayoutDesigner3D() {
       setLoadState('idle')
       setLoadError(null)
       lastSavedSnapshotRef.current = null
+      setShowTemplatePicker(true)
     } else if (!layoutId && !token) {
       setLoadState('idle')
       setLoadError(null)
@@ -842,14 +858,14 @@ function LayoutDesigner3D() {
     link.click()
   }, [selectedVenue, selectedLocation, furniture, capacityInfo.totalSeats])
 
-  const handleExportFloorPlan = useCallback(() => {
+  const getFloorPlanImage = useCallback((): { dataUrl: string; w: number; h: number } | null => {
     const w = 1200
     const h = 900
     const canvas = document.createElement('canvas')
     canvas.width = w
     canvas.height = h
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) return null
 
     const margin = 80
     const drawW = w - margin * 2
@@ -857,7 +873,6 @@ function LayoutDesigner3D() {
 
     ctx.fillStyle = '#fff'
     ctx.fillRect(0, 0, w, h)
-
     ctx.fillStyle = '#003366'
     ctx.fillRect(0, 0, w, 50)
     ctx.fillStyle = '#FFC72C'
@@ -867,11 +882,9 @@ function LayoutDesigner3D() {
     ctx.fillText(`${selectedVenue.name} — ${selectedLocation.name}`, 16, 33)
     ctx.font = '12px sans-serif'
     ctx.fillText(`${new Date().toLocaleDateString()} | ${roomDimensions.width}m × ${roomDimensions.depth}m`, w - 280, 33)
-
     ctx.strokeStyle = '#333'
     ctx.lineWidth = 2
     ctx.strokeRect(margin, margin + 10, drawW, drawH)
-
     ctx.strokeStyle = '#e0e0e0'
     ctx.lineWidth = 0.5
     const gridSpacing = 1
@@ -883,7 +896,6 @@ function LayoutDesigner3D() {
       const pz = margin + 10 + (z / roomDimensions.depth) * drawH
       ctx.beginPath(); ctx.moveTo(margin, pz); ctx.lineTo(margin + drawW, pz); ctx.stroke()
     }
-
     ctx.fillStyle = '#333'
     ctx.font = '11px sans-serif'
     ctx.textAlign = 'center'
@@ -894,7 +906,6 @@ function LayoutDesigner3D() {
     ctx.fillText(`${roomDimensions.depth}m`, 0, 0)
     ctx.restore()
     ctx.textAlign = 'left'
-
     furniture.forEach((item) => {
       const tpl = furnitureTemplates.find(t => item.id.startsWith(t.id + '-') || item.id === t.id)
       if (!tpl) return
@@ -902,11 +913,9 @@ function LayoutDesigner3D() {
       const cz = margin + 10 + ((item.position[2] + roomDimensions.depth / 2) / roomDimensions.depth) * drawH
       const fw = (tpl.dimensions.width / roomDimensions.width) * drawW
       const fd = (tpl.dimensions.depth / roomDimensions.depth) * drawH
-
       ctx.save()
       ctx.translate(cx, cz)
       ctx.rotate(item.rotation)
-
       ctx.fillStyle = tpl.type === 'table' ? '#D4A574' : tpl.type === 'chair' ? '#A0785A' : tpl.type === 'stage' ? '#888' : tpl.type === 'bar' ? '#6B4226' : '#999'
       if (tpl.shape === 'round-table' || tpl.shape === 'high-top' || tpl.shape === 'standing-table') {
         ctx.beginPath()
@@ -917,15 +926,12 @@ function LayoutDesigner3D() {
         ctx.fillRect(-fw / 2, -fd / 2, fw, fd)
         ctx.strokeStyle = '#333'; ctx.lineWidth = 1; ctx.strokeRect(-fw / 2, -fd / 2, fw, fd)
       }
-
       ctx.fillStyle = '#333'
       ctx.font = '9px sans-serif'
       ctx.textAlign = 'center'
       ctx.fillText(tpl.name, 0, fd / 2 + 12)
-
       ctx.restore()
     })
-
     const legendY = h - 40
     ctx.fillStyle = '#003366'
     ctx.font = 'bold 12px sans-serif'
@@ -948,11 +954,9 @@ function LayoutDesigner3D() {
       ctx.fillText(label, lx + 18, legendY + 2)
       lx += 80
     })
-
     ctx.fillStyle = '#003366'
     ctx.font = 'bold 12px sans-serif'
     ctx.fillText(`${capacityInfo.totalSeats} seats | ${capacityInfo.tableCount} tables | ${capacityInfo.chairCount} chairs | ${furniture.length} items`, w - 400, legendY)
-
     const scaleBarMeters = Math.round(roomDimensions.width / 4)
     const scaleBarPx = (scaleBarMeters / roomDimensions.width) * drawW
     ctx.strokeStyle = '#333'; ctx.lineWidth = 2
@@ -961,12 +965,61 @@ function LayoutDesigner3D() {
     ctx.beginPath(); ctx.moveTo(margin + scaleBarPx, legendY - 30); ctx.lineTo(margin + scaleBarPx, legendY - 20); ctx.stroke()
     ctx.fillStyle = '#333'; ctx.font = '10px sans-serif'; ctx.textAlign = 'center'
     ctx.fillText(`${scaleBarMeters}m`, margin + scaleBarPx / 2, legendY - 32)
+    return { dataUrl: canvas.toDataURL('image/png'), w, h }
+  }, [selectedVenue, selectedLocation, furniture, roomDimensions, capacityInfo])
 
+  const handleExportFloorPlan = useCallback(() => {
+    const result = getFloorPlanImage()
+    if (!result) return
     const link = document.createElement('a')
     link.download = `${selectedVenue.id}-${selectedLocation.id}-floorplan-${Date.now()}.png`
-    link.href = canvas.toDataURL('image/png')
+    link.href = result.dataUrl
     link.click()
-  }, [selectedVenue, selectedLocation, furniture, roomDimensions, capacityInfo])
+  }, [getFloorPlanImage, selectedVenue.id, selectedLocation.id])
+
+  const handlePrint = useCallback(() => {
+    const result = getFloorPlanImage()
+    if (!result) return
+    setPrintImageUrl(result.dataUrl)
+    setShowPrintView(true)
+  }, [getFloorPlanImage])
+
+  const handleExportPdf = useCallback(() => {
+    const result = getFloorPlanImage()
+    if (!result) return
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'mm' })
+    const pageW = doc.internal.pageSize.getWidth()
+    const pageH = doc.internal.pageSize.getHeight()
+    const mmPerPx = 25.4 / 96
+    const wMm = result.w * mmPerPx
+    const hMm = result.h * mmPerPx
+    const scale = Math.min(pageW / wMm, pageH / hMm, 1)
+    doc.addImage(result.dataUrl, 'PNG', 0, 0, wMm * scale, hMm * scale)
+    doc.save(`${selectedVenue.id}-${selectedLocation.id}-floorplan-${Date.now()}.pdf`)
+  }, [getFloorPlanImage, selectedVenue.id, selectedLocation.id])
+
+  useEffect(() => {
+    if (!showPrintView || !printImageUrl) return
+    const t = setTimeout(() => window.print(), 400)
+    return () => clearTimeout(t)
+  }, [showPrintView, printImageUrl])
+
+  useEffect(() => {
+    if (!showTemplatePicker) return
+    listTemplates().then(({ data }) => setTemplateList((data ?? []).map((t) => ({ ...t, snapshot: t.snapshot as LayoutSnapshot }))))
+  }, [showTemplatePicker])
+
+  useEffect(() => {
+    getVenuesWithLocations().then(({ error, data }) => {
+      if (!error && data && data.length > 0) setVenuesList(data)
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 3000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   const handleShare = useCallback(() => {
     const data = {
@@ -980,7 +1033,7 @@ function LayoutDesigner3D() {
     const encoded = btoa(JSON.stringify(data))
     const url = `${window.location.origin}${window.location.pathname}?layout=${encoded}`
     navigator.clipboard.writeText(url).then(() => {
-      alert('Share link copied to clipboard!')
+      setToast({ message: 'Share link copied to clipboard', type: 'success' })
     }).catch(() => {
       prompt('Copy this share link:', url)
     })
@@ -1430,7 +1483,8 @@ function LayoutDesigner3D() {
   }
 
   return (
-    <div className="layout-editor" style={{ width: '100%', height: '100%', minHeight: '100dvh', position: 'relative', overflow: 'hidden', backgroundColor: '#1a1a1a' }}>
+    <div id="main-content" className="layout-editor" style={{ width: '100%', height: '100%', minHeight: '100dvh', position: 'relative', overflow: 'hidden', backgroundColor: '#1a1a1a' }}>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
 
       {/* ── Full-viewport 3D Canvas ── */}
       <div
@@ -1520,24 +1574,27 @@ function LayoutDesigner3D() {
         <div className="header-brand" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <img src="/images/coe-logo.svg" alt="City of Edmonton" style={{ height: 32 }} />
           <span style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>3D Layout Designer</span>
+          {shareToken && <span style={{ background: 'rgba(255,255,255,0.25)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6 }}>Shared</span>}
         </div>
         <div className="header-mid" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <select className="csel" value={selectedVenue.id} onChange={(e) => handleVenueChange(e.target.value)}>
-            {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+            {venuesList.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
           <select className="csel" value={selectedLocation.id} onChange={(e) => handleLocationChange(e.target.value)}>
             {selectedVenue.locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
           </select>
-          {cloudLayoutId && user && (
+          {(cloudLayoutId && user) || shareToken ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              {showRenameInput ? (
+              {shareToken ? (
+                <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{layoutName ?? 'Event layout'}</span>
+              ) : showRenameInput ? (
                 <>
                   <input
                     type="text"
                     value={renameInputValue}
                     onChange={(e) => setRenameInputValue(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
+                      if (e.key === 'Enter' && cloudLayoutId) {
                         renameLayout(cloudLayoutId, renameInputValue.trim()).then(({ error }) => {
                           if (!error) setLayoutName(renameInputValue.trim())
                           setShowRenameInput(false)
@@ -1546,7 +1603,7 @@ function LayoutDesigner3D() {
                       if (e.key === 'Escape') setShowRenameInput(false)
                     }}
                     onBlur={() => {
-                      if (renameInputValue.trim()) {
+                      if (renameInputValue.trim() && cloudLayoutId) {
                         renameLayout(cloudLayoutId, renameInputValue.trim()).then(({ error }) => {
                           if (!error) setLayoutName(renameInputValue.trim())
                         })
@@ -1572,7 +1629,7 @@ function LayoutDesigner3D() {
                 </>
               )}
             </div>
-          )}
+          ) : null}
         </div>
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {presenceUsers.length > 1 && (
@@ -1590,6 +1647,7 @@ function LayoutDesigner3D() {
             <button
               onClick={handleSave}
               disabled={cloudSaveLoading || (canSaveToCloud && isViewOnly)}
+              aria-label={cloudSaveLoading ? 'Saving' : saveConfirmation ? 'Saved' : canSaveToCloud ? 'Save to cloud (Ctrl+S)' : 'Save to local storage'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
                 backgroundColor: saveConfirmation ? theme.success : theme.accentLight,
@@ -1605,7 +1663,10 @@ function LayoutDesigner3D() {
           </div>
           <div style={{ position: 'relative' }}>
             <button
+              type="button"
               onClick={() => setShowOverflowMenu(prev => !prev)}
+              aria-label="Open menu"
+              aria-expanded={showOverflowMenu}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 width: 36, height: 36, background: 'rgba(255,255,255,0.12)',
@@ -1624,7 +1685,7 @@ function LayoutDesigner3D() {
                     <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px', color: theme.textSecondary, padding: '4px 16px 6px', fontWeight: 600 }}>Space</div>
                     <div style={{ padding: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                       <select className="csel" value={selectedVenue.id} onChange={(e) => handleVenueChange(e.target.value)} style={{ width: '100%' }}>
-                        {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                        {venuesList.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                       </select>
                       <select className="csel" value={selectedLocation.id} onChange={(e) => handleLocationChange(e.target.value)} style={{ width: '100%' }}>
                         {selectedVenue.locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
@@ -1648,12 +1709,15 @@ function LayoutDesigner3D() {
                           <button onClick={async () => { setShowOverflowMenu(false); setShowVersionHistory(true); const r = await listVersions(cloudLayoutId); if (r.data) setLayoutVersions(r.data); }}>Version history</button>
                           <button onClick={() => { setShowOverflowMenu(false); setRenameInputValue(layoutName ?? ''); setShowRenameInput(true) }}>Rename</button>
                           <button onClick={async () => { setShowOverflowMenu(false); setDuplicateInProgress(true); const { error, id } = await duplicateLayout(cloudLayoutId); setDuplicateInProgress(false); if (!error && id) window.location.href = `/?layoutId=${id}` }} disabled={duplicateInProgress}>{duplicateInProgress ? '…' : 'Duplicate'}</button>
+                          <button onClick={() => { setShowOverflowMenu(false); const name = prompt('Template name:'); if (name?.trim()) { createTemplate({ name: name.trim(), venueId: selectedVenue.id, locationId: selectedLocation.id, snapshot: buildSnapshot() }).then((r) => setToast(r.error ? { message: r.error, type: 'error' } : { message: 'Saved as template', type: 'success' })); } }}>Save as template</button>
                         </>
                       )}
                     </>
                   )}
                   <hr />
                   <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px', color: theme.textSecondary, padding: '4px 16px 4px', fontWeight: 600 }}>Export</div>
+                  <button onClick={() => { setShowOverflowMenu(false); handlePrint(); }}>Print</button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleExportPdf(); }}>PDF</button>
                   <button onClick={() => { setShowOverflowMenu(false); handleExport(); }}>PNG</button>
                   <button onClick={() => { setShowOverflowMenu(false); handleExportFloorPlan(); }}>Floor plan</button>
                   <button onClick={() => { setShowOverflowMenu(false); handleExportReport(); }}>Report</button>
@@ -1661,6 +1725,7 @@ function LayoutDesigner3D() {
                   <hr />
                   <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px', color: theme.textSecondary, padding: '4px 16px 4px', fontWeight: 600 }}>View</div>
                   <button onClick={() => { setShowOverflowMenu(false); setShowGuestPanel(prev => !prev); }}>Guests {showGuestPanel ? '✓' : ''}</button>
+                  <button onClick={async () => { setShowOverflowMenu(false); setShowCommentsPanel(prev => { const next = !prev; if (cloudLayoutId && next) listComments(cloudLayoutId).then((r) => r.data && setLayoutComments(r.data)); return next; }); }}>Notes {showCommentsPanel ? '✓' : ''}</button>
                   <button onClick={() => { setShowOverflowMenu(false); setShowMiniMap(prev => !prev); }}>Floor plan {showMiniMap ? '✓' : ''}</button>
                   <button onClick={() => { setShowOverflowMenu(false); setShowCopyFrom(true); }}>Copy from…</button>
                   <button onClick={() => { setShowOverflowMenu(false); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (ev) => { const file = (ev.target as HTMLInputElement).files?.[0]; if (file) setPanoramaImage(URL.createObjectURL(file)); }; input.click(); }}>Load panorama</button>
@@ -1956,6 +2021,25 @@ function LayoutDesigner3D() {
         </aside>
       )}
 
+      {/* ── NOTES / COMMENTS PANEL ── */}
+      {showCommentsPanel && cloudLayoutId && (
+        <aside className="glass" style={{ position: 'absolute', top: 60, right: 12, width: 280, zIndex: 118, borderRadius: theme.radius, maxHeight: 'calc(100vh - 130px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ padding: '12px 14px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>Notes</span>
+            <button onClick={() => setShowCommentsPanel(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: theme.textSecondary, lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+          <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+            {layoutComments.map((c) => (
+              <div key={c.id} style={{ padding: '8px 10px', marginBottom: 8, background: 'rgba(0,0,0,0.04)', borderRadius: 8, fontSize: 13, color: theme.text }}>{c.body}</div>
+            ))}
+          </div>
+          <div style={{ padding: 12, borderTop: `1px solid ${theme.border}` }}>
+            <textarea value={newCommentBody} onChange={(e) => setNewCommentBody(e.target.value)} placeholder="Add a note…" rows={2} style={{ width: '100%', padding: 8, fontSize: 13, border: `1px solid ${theme.border}`, borderRadius: 8, resize: 'vertical', boxSizing: 'border-box' }} />
+            <button onClick={async () => { if (!newCommentBody.trim()) return; await addComment(cloudLayoutId, newCommentBody); setNewCommentBody(''); const r = await listComments(cloudLayoutId); if (r.data) setLayoutComments(r.data); }} style={{ marginTop: 8, padding: '8px 14px', background: theme.accent, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+          </div>
+        </aside>
+      )}
+
       {/* ── MINI MAP + FLOOR LEVEL ── */}
       {showMiniMap && (
         <div
@@ -2010,7 +2094,7 @@ function LayoutDesigner3D() {
               <button onClick={() => setShowCopyFrom(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: theme.textSecondary, lineHeight: 1, padding: 0 }}>×</button>
             </div>
             <div style={{ maxHeight: 300, overflowY: 'auto' }}>
-              {venues.map(v => (
+              {venuesList.map(v => (
                 <div key={v.id}>
                   <div style={{ padding: '6px 16px', fontWeight: 600, color: theme.accent, fontSize: 11, backgroundColor: 'rgba(0,51,102,0.03)', borderBottom: `1px solid ${theme.border}` }}>{v.name}</div>
                   {v.locations.map(loc => (
@@ -2174,6 +2258,86 @@ function LayoutDesigner3D() {
             </div>
           </div>
         </>
+      )}
+
+      {/* Template picker (new layout) */}
+      {showTemplatePicker && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 199, background: 'rgba(0,0,0,0.4)' }} onClick={() => setShowTemplatePicker(false)} />
+          <div className="glass" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 200, minWidth: 320, maxWidth: 420, maxHeight: '80vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRadius: theme.radius }}>
+            <div style={{ position: 'relative', padding: '12px 16px', borderBottom: `1px solid ${theme.border}` }}>
+              <span style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>Start from template</span>
+              <button type="button" onClick={() => setShowTemplatePicker(false)} style={{ position: 'absolute', top: 12, right: 16, background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: theme.textSecondary }}>×</button>
+            </div>
+            <div style={{ overflowY: 'auto', padding: 12 }}>
+              <button type="button" onClick={() => setShowTemplatePicker(false)} style={{ width: '100%', padding: 12, marginBottom: 8, textAlign: 'left', background: 'rgba(0,51,102,0.06)', border: `1px solid ${theme.accent}`, borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: theme.accent }}>Start from scratch</button>
+              {templateList.map((t) => {
+                const venue = findVenueById(t.venue_id)
+                const location = venue && findLocationById(venue, t.location_id)
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      if (venue) setSelectedVenue(venue)
+                      if (location) {
+                        setSelectedLocation(location)
+                        setRoomDimensions(location.roomDimensions)
+                        setPanoramaImage(location.panorama)
+                      }
+                      const snap = t.snapshot
+                      const items = (snap.furniture ?? []).map((f) => ({ ...f, type: f.type as FurnitureItem['type'] }))
+                      setFurniture(items)
+                      if (snap.floorLevelY !== undefined) setFloorLevelY(snap.floorLevelY)
+                      if (snap.guests) setGuests(snap.guests)
+                      if (snap.guestAssignments) setGuestAssignments(snap.guestAssignments ?? {})
+                      if (snap.itemColors) setItemColors(snap.itemColors ?? {})
+                      if (snap.customModels?.length) setCustomModels(snap.customModels)
+                      setHistory([items])
+                      setHistoryIndex(0)
+                      setShowTemplatePicker(false)
+                    }}
+                    style={{ width: '100%', padding: 12, marginBottom: 6, textAlign: 'left', background: 'rgba(0,0,0,0.03)', border: `1px solid ${theme.border}`, borderRadius: 8, cursor: 'pointer', fontSize: 13 }}
+                  >
+                    {t.name}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Print overlay */}
+      {showPrintView && printImageUrl && (
+        <div className="print-overlay" style={{ position: 'fixed', inset: 0, zIndex: 9999, background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 24, boxSizing: 'border-box' }}>
+          <img src={printImageUrl} alt="Floor plan" style={{ maxWidth: '100%', height: 'auto', objectFit: 'contain' }} />
+          <button type="button" className="no-print" onClick={() => { setShowPrintView(false); setPrintImageUrl(null) }} style={{ marginTop: 16, padding: '10px 24px', background: theme.accent, color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Close</button>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 2000,
+            padding: '12px 20px',
+            borderRadius: 8,
+            background: toast.type === 'error' ? '#ef4444' : theme.accent,
+            color: '#fff',
+            fontSize: 14,
+            fontWeight: 500,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          }}
+        >
+          {toast.message}
+        </div>
       )}
 
       {/* View-only banner */}
