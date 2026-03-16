@@ -3,6 +3,7 @@ html, body {
   padding: 0;
   overflow: hidden;
   height: 100%;
+  min-height: 100dvh;
   width: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -86,6 +87,7 @@ html, body {
 .omenu button:hover { background: rgba(0, 51, 102, 0.06); }
 .omenu button:disabled { opacity: 0.35; cursor: default; }
 .omenu hr { border: none; border-top: 1px solid rgba(0, 0, 0, 0.06); margin: 4px 8px; }
+.omenu .csel { color: #1a1a1a; background: #fff; }
 
 .csel {
   padding: 5px 24px 5px 10px;
@@ -180,4 +182,32 @@ html, body {
 @keyframes slideRight {
   from { transform: translateX(16px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
+}
+
+/* ── Responsive: touch targets & layout ── */
+@media (max-width: 900px) {
+  .layout-editor .header-mid { display: none !important; }
+  .layout-editor .header-actions { flex-wrap: wrap; gap: 6px; }
+  .layout-editor .panel-left { width: min(320px, 100vw - 24px) !important; left: 8px !important; top: 56px !important; bottom: 60px !important; max-height: none !important; }
+  .layout-editor .panel-right { width: min(280px, 100vw - 24px) !important; right: 8px !important; left: auto !important; max-height: 50vh !important; }
+  .layout-editor .bottom-bar { left: 8px; right: 8px; width: auto !important; transform: none !important; flex-wrap: wrap; justify-content: center; padding: 6px 8px !important; height: auto !important; min-height: 44px; border-radius: 12px !important; }
+  .layout-editor .tbtn { min-width: 44px; min-height: 44px; }
+  .layout-editor .ptab { top: 52px; min-width: 44px; min-height: 44px; }
+}
+
+@media (max-width: 600px) {
+  .layout-editor header { height: 48px; padding: 0 10px !important; flex-wrap: wrap; }
+  .layout-editor .header-brand span { display: none !important; }
+  .layout-editor .header-brand img { height: 28px !important; }
+  .layout-editor .panel-left { width: 100% !important; left: 0 !important; right: 0 !important; top: 48px !important; bottom: 0 !important; border-radius: 0 !important; }
+  .layout-editor .panel-right { width: 100% !important; right: 0 !important; left: 0 !important; top: 48px !important; max-height: 70vh !important; border-radius: 0 !important; }
+  .layout-editor .guest-panel { left: 0 !important; right: 0 !important; width: 100% !important; max-width: none !important; top: 48px !important; max-height: 70vh !important; border-radius: 0 !important; }
+  .layout-editor .bottom-bar { bottom: 8px; left: 8px; right: 8px; border-radius: 16px !important; }
+  .layout-editor .omenu { min-width: 280px !important; max-width: calc(100vw - 24px) !important; max-height: 80vh !important; overflow-y: auto !important; }
+}
+
+/* Touch-friendly minimums */
+.tbtn, .ptab, .layout-editor header button { min-height: 44px; min-width: 44px; }
+@media (pointer: fine) {
+  .tbtn, .ptab { min-height: 36px; min-width: 36px; }
 }

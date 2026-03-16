@@ -6,11 +6,14 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "db:migrate": "node scripts/run-migration.js"
   },
   "dependencies": {
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.99.2",
     "next": "^14.2.32",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -18,11 +21,13 @@
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
+    "@types/pg": "^8.18.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/three": "^0.169.0",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.10",
+    "pg": "^8.20.0",
     "typescript": "^5.0.0"
   }
 }

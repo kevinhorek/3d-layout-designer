@@ -2,7 +2,22 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import dynamic from 'next/dynamic'
+import { useSearchParams, usePathname } from 'next/navigation'
+import Link from 'next/link'
 import { venues, getDefaultVenue, getDefaultLocation, findVenueById, findLocationById, type Venue, type VenueLocation } from './venueData'
+import { createClient } from '@/lib/supabase/client'
+import {
+  getLayoutByShareToken,
+  getLayout,
+  createLayout,
+  updateLayout,
+  updateLayoutByShareToken,
+  createShareLink,
+  renameLayout,
+  duplicateLayout,
+} from './actions/layouts'
+import { saveVersion, listVersions, getVersion } from './actions/versions'
+import type { LayoutSnapshot } from '@/lib/db/types'
 
 const DynamicCanvas = dynamic(
   () => import('./Scene3D').then(mod => mod.Scene3DCanvas || mod.default),
@@ -312,7 +327,7 @@ function loadLocationLayout(location: VenueLocation): FurnitureItem[] {
 
 const MAX_HISTORY = 50
 
-export default function LayoutDesigner3D() {
+function LayoutDesigner3D() {
   const [selectedVenue, setSelectedVenue] = useState<Venue>(() => getDefaultVenue())
   const [selectedLocation, setSelectedLocation] = useState<VenueLocation>(() =>
     getDefaultLocation(getDefaultVenue())
@@ -329,6 +344,8 @@ export default function LayoutDesigner3D() {
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([])
   const [snapToGrid, setSnapToGrid] = useState(true)
   const [saveConfirmation, setSaveConfirmation] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false)
   const [history, setHistory] = useState<FurnitureItem[][]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [editingRotation, setEditingRotation] = useState<Record<string, string>>({})
@@ -346,8 +363,38 @@ export default function LayoutDesigner3D() {
   const [showOverflowMenu, setShowOverflowMenu] = useState(false)
   const [showFurniturePanel, setShowFurniturePanel] = useState(true)
   const [showMiniMap, setShowMiniMap] = useState(false)
+  const [cloudLayoutId, setCloudLayoutId] = useState<string | null>(null)
+  const [shareToken, setShareToken] = useState<string | null>(null)
+  const [shareRole, setShareRole] = useState<'view' | 'edit' | null>(null)
+  const [showShareDialog, setShowShareDialog] = useState(false)
+  const [showVersionHistory, setShowVersionHistory] = useState(false)
+  const [layoutVersions, setLayoutVersions] = useState<Array<{ id: string; version_number: number; created_at: string }>>([])
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
+  const [shareLinkCopied, setShareLinkCopied] = useState(false)
+  const [cloudSaveLoading, setCloudSaveLoading] = useState(false)
+  const [sharedLayoutId, setSharedLayoutId] = useState<string | null>(null)
+  const [presenceUsers, setPresenceUsers] = useState<Array<{ id: string; name?: string }>>([])
+  const [layoutName, setLayoutName] = useState<string | null>(null)
+  const [showRenameInput, setShowRenameInput] = useState(false)
+  const [renameInputValue, setRenameInputValue] = useState('')
+  const [duplicateInProgress, setDuplicateInProgress] = useState(false)
+  const [loadState, setLoadState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const layoutIdForRealtime = cloudLayoutId ?? sharedLayoutId
+  const loginRedirectUrl = useMemo(() => {
+    const q = searchParams.toString()
+    const path = pathname + (q ? `?${q}` : '')
+    return `/auth/login?next=${encodeURIComponent(path)}`
+  }, [pathname, searchParams])
+  const snapshotRef = useRef<() => LayoutSnapshot>(() => ({ furniture: [], floorLevelY: 0, venueId: '', locationId: '' }))
+  const lastSavedSnapshotRef = useRef<LayoutSnapshot | null>(null)
+  const saveHandlerRef = useRef<() => Promise<void>>(() => Promise.resolve())
 
   const saveKey = `layout-${selectedVenue.id}-${selectedLocation.id}`
+  const isViewOnly = shareToken !== null && shareRole === 'view'
+  const canSaveToCloud = (user !== null && cloudLayoutId !== null) || (shareToken !== null && shareRole === 'edit')
 
   const pushHistory = useCallback((items: FurnitureItem[]) => {
     setHistory(prev => {
@@ -374,12 +421,13 @@ export default function LayoutDesigner3D() {
   }, [historyIndex, history])
 
   const updateFurniture = useCallback((next: FurnitureItem[] | ((prev: FurnitureItem[]) => FurnitureItem[])) => {
+    if (isViewOnly) return
     setFurniture(prev => {
       const resolved = typeof next === 'function' ? next(prev) : next
       pushHistory(resolved)
       return resolved
     })
-  }, [pushHistory])
+  }, [pushHistory, isViewOnly])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -436,13 +484,245 @@ export default function LayoutDesigner3D() {
     } catch { /* invalid share link */ }
   }, [])
 
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) =>
+      setUser(session?.user ?? null)
+    )
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    const token = searchParams.get('shareToken')
+    const layoutId = searchParams.get('layoutId')
+    const isNew = searchParams.get('new')
+    if (token) {
+      setLoadState('loading')
+      setLoadError(null)
+      getLayoutByShareToken(token).then(({ error, data }) => {
+        if (error || !data) {
+          setLoadState('error')
+          setLoadError(error ?? 'Invalid or expired link')
+          return
+        }
+        setLoadState('done')
+        const d = data as { snapshot: LayoutSnapshot; venue_id: string; location_id: string; share_role: 'view' | 'edit' }
+        const snap = d.snapshot
+        const venue = findVenueById(snap.venueId)
+        const location = venue && findLocationById(venue, snap.locationId)
+        if (venue) setSelectedVenue(venue)
+        if (location) {
+          setSelectedLocation(location)
+          setRoomDimensions(location.roomDimensions)
+          setPanoramaImage(location.panorama)
+        }
+        setFurniture((snap.furniture ?? []).map((f) => ({ ...f, type: f.type as FurnitureItem['type'] })))
+        setFloorLevelY(snap.floorLevelY ?? 0)
+        setGuests(snap.guests ?? [])
+        setGuestAssignments(snap.guestAssignments ?? {})
+        setItemColors(snap.itemColors ?? {})
+        setShareToken(token)
+        setShareRole(d.share_role)
+        setSharedLayoutId((data as { id: string }).id)
+        setHistory([(snap.furniture ?? []).map((f) => ({ ...f, type: f.type as FurnitureItem['type'] }))])
+        setHistoryIndex(0)
+        lastSavedSnapshotRef.current = {
+          furniture: (snap.furniture ?? []).map((f) => ({ ...f, type: f.type })),
+          floorLevelY: snap.floorLevelY ?? 0,
+          venueId: snap.venueId ?? '',
+          locationId: snap.locationId ?? '',
+          guests: snap.guests,
+          guestAssignments: snap.guestAssignments,
+          itemColors: snap.itemColors,
+          panoramaUrl: snap.panoramaUrl,
+        }
+      })
+      return
+    }
+    if (layoutId && user) {
+      setLoadState('loading')
+      setLoadError(null)
+      getLayout(layoutId).then(({ error, data }) => {
+        if (error || !data) {
+          setLoadState('error')
+          setLoadError(error ?? 'Layout not found or you don’t have access')
+          return
+        }
+        setLoadState('done')
+        const row = data as { snapshot: LayoutSnapshot; venue_id: string; location_id: string; name?: string }
+        const snap = row.snapshot
+        const venue = findVenueById(snap.venueId)
+        const location = venue && findLocationById(venue, snap.locationId)
+        if (venue) setSelectedVenue(venue)
+        if (location) {
+          setSelectedLocation(location)
+          setRoomDimensions(location.roomDimensions)
+          setPanoramaImage(snap.panoramaUrl ?? location.panorama)
+        }
+        setFurniture((snap.furniture ?? []).map((f) => ({ ...f, type: f.type as FurnitureItem['type'] })))
+        setFloorLevelY(snap.floorLevelY ?? 0)
+        setGuests(snap.guests ?? [])
+        setGuestAssignments(snap.guestAssignments ?? {})
+        setItemColors(snap.itemColors ?? {})
+        setCloudLayoutId(layoutId)
+        setLayoutName(row.name ?? null)
+        setHistory([(snap.furniture ?? []).map((f) => ({ ...f, type: f.type as FurnitureItem['type'] }))])
+        setHistoryIndex(0)
+        lastSavedSnapshotRef.current = {
+          furniture: (snap.furniture ?? []).map((f) => ({ ...f, type: f.type })),
+          floorLevelY: snap.floorLevelY ?? 0,
+          venueId: snap.venueId ?? '',
+          locationId: snap.locationId ?? '',
+          guests: snap.guests,
+          guestAssignments: snap.guestAssignments,
+          itemColors: snap.itemColors,
+          panoramaUrl: snap.panoramaUrl,
+        }
+      })
+      return
+    }
+    if (isNew) {
+      setCloudLayoutId(null)
+      setShareToken(null)
+      setShareRole(null)
+      setLayoutName(null)
+      setLoadState('idle')
+      setLoadError(null)
+      lastSavedSnapshotRef.current = null
+    } else if (!layoutId && !token) {
+      setLoadState('idle')
+      setLoadError(null)
+    }
+  }, [searchParams.get('shareToken') ?? '', searchParams.get('layoutId') ?? '', searchParams.get('new') ?? '', user?.id])
+
+  useEffect(() => {
+    if (!layoutIdForRealtime || typeof window === 'undefined') return
+    const supabase = createClient()
+    const channel = supabase.channel(`layout:${layoutIdForRealtime}`)
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState() as Record<string, Array<{ user_id?: string; name?: string }>>
+        const users = Object.values(state).flat().map((p) => ({ id: p?.user_id ?? '', name: p?.name ?? 'Guest' }))
+        setPresenceUsers(users)
+      })
+      .on('broadcast', { event: 'snapshot' }, ({ payload }) => {
+        const snap = payload as LayoutSnapshot
+        if (snap.furniture) setFurniture(snap.furniture.map((f) => ({ ...f, type: f.type as FurnitureItem['type'] })))
+        if (snap.floorLevelY !== undefined) setFloorLevelY(snap.floorLevelY)
+        if (snap.guests) setGuests(snap.guests)
+        if (snap.guestAssignments) setGuestAssignments(snap.guestAssignments)
+        if (snap.itemColors) setItemColors(snap.itemColors)
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            user_id: user?.id ?? 'anonymous',
+            name: user?.email ?? (shareToken ? 'Guest (shared)' : 'Anonymous'),
+          })
+        }
+      })
+    const interval = setInterval(() => {
+      if (canSaveToCloud && layoutIdForRealtime && snapshotRef.current) {
+        channel.send({
+          type: 'broadcast',
+          event: 'snapshot',
+          payload: snapshotRef.current(),
+        })
+      }
+    }, 3000)
+    return () => {
+      clearInterval(interval)
+      supabase.removeChannel(channel)
+    }
+  }, [layoutIdForRealtime, user?.id, shareToken, canSaveToCloud])
+
+  const buildSnapshot = useCallback((): LayoutSnapshot => ({
+    furniture,
+    floorLevelY,
+    venueId: selectedVenue.id,
+    locationId: selectedLocation.id,
+    guests,
+    guestAssignments,
+    itemColors,
+    panoramaUrl: panoramaImage,
+  }), [furniture, floorLevelY, selectedVenue.id, selectedLocation.id, guests, guestAssignments, itemColors, panoramaImage])
+  snapshotRef.current = buildSnapshot
+
+  const handleSaveCloud = useCallback(async () => {
+    if (!canSaveToCloud) return
+    setCloudSaveLoading(true)
+    const snapshot = buildSnapshot()
+    try {
+      if (shareToken && shareRole === 'edit') {
+        const res = await updateLayoutByShareToken(shareToken, snapshot)
+        if (res.error) throw new Error(res.error)
+      } else if (cloudLayoutId && user) {
+        const res = await updateLayout(cloudLayoutId, snapshot)
+        if (res.error) throw new Error(res.error)
+      } else if (user) {
+        const name = `${selectedVenue.name} – ${selectedLocation.name}`
+        const res = await createLayout({
+          name,
+          venueId: selectedVenue.id,
+          locationId: selectedLocation.id,
+          snapshot,
+        })
+        if (res.error) throw new Error(res.error)
+        if (res.id) {
+          setCloudLayoutId(res.id)
+          setLayoutName(name)
+          window.history.replaceState({}, '', `/?layoutId=${res.id}`)
+        }
+      }
+      setSaveConfirmation(true)
+      setTimeout(() => setSaveConfirmation(false), 1500)
+      lastSavedSnapshotRef.current = buildSnapshot()
+      setSaveError(null)
+    } catch (e) {
+      console.error(e)
+      setSaveConfirmation(false)
+      setSaveError(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setCloudSaveLoading(false)
+    }
+  }, [canSaveToCloud, shareToken, shareRole, cloudLayoutId, user, buildSnapshot, selectedVenue.name, selectedVenue.id, selectedLocation.name, selectedLocation.id])
+  saveHandlerRef.current = handleSaveCloud
+
+  const isDirty = useMemo(() => {
+    if (!canSaveToCloud || !(cloudLayoutId || shareToken) || lastSavedSnapshotRef.current == null) return false
+    const current = buildSnapshot()
+    return JSON.stringify(current) !== JSON.stringify(lastSavedSnapshotRef.current)
+  }, [canSaveToCloud, cloudLayoutId, shareToken, buildSnapshot, furniture, floorLevelY, guests, guestAssignments, itemColors, panoramaImage, selectedVenue.id, selectedLocation.id])
+
+  useEffect(() => {
+    if (!canSaveToCloud || !(cloudLayoutId || shareToken) || !isDirty || isViewOnly) return
+    const t = setTimeout(() => { saveHandlerRef.current() }, 2500)
+    return () => clearTimeout(t)
+  }, [isDirty, canSaveToCloud, cloudLayoutId, shareToken, isViewOnly])
+
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault()
+        ;(e as BeforeUnloadEvent & { returnValue: string }).returnValue = ''
+      }
+    }
+    window.addEventListener('beforeunload', onBeforeUnload)
+    return () => window.removeEventListener('beforeunload', onBeforeUnload)
+  }, [isDirty])
+
   const handleSave = useCallback(() => {
     try {
       localStorage.setItem(saveKey, JSON.stringify({ furniture, floorLevelY }))
+    } catch { /* silent */ }
+    if (canSaveToCloud) {
+      handleSaveCloud()
+    } else {
       setSaveConfirmation(true)
       setTimeout(() => setSaveConfirmation(false), 1500)
-    } catch { /* silent */ }
-  }, [saveKey, furniture, floorLevelY])
+    }
+  }, [saveKey, furniture, floorLevelY, canSaveToCloud, handleSaveCloud])
 
   const handleReset = useCallback(() => {
     localStorage.removeItem(saveKey)
@@ -991,6 +1271,7 @@ export default function LayoutDesigner3D() {
   }
 
   const handleTemplateSelect = (template: FurnitureTemplate) => {
+    if (isViewOnly) return
     setSelectedTemplate(template)
     setIsDragging(true)
   }
@@ -1084,6 +1365,9 @@ export default function LayoutDesigner3D() {
       } else if (isMeta && e.key === 'z' && e.shiftKey) {
         e.preventDefault()
         handleRedo()
+      } else if (isMeta && e.key === 's') {
+        e.preventDefault()
+        handleSave()
       } else if (isMeta && e.key === 'd') {
         e.preventDefault()
         handleDuplicate()
@@ -1114,12 +1398,39 @@ export default function LayoutDesigner3D() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleUndo, handleRedo, handleDuplicate, selectedItemIds, handleDeleteSelected, nudgeSelected])
+  }, [handleUndo, handleRedo, handleSave, handleDuplicate, selectedItemIds, handleDeleteSelected, nudgeSelected])
 
   const hasComplianceIssues = complianceInfo.overCapacity || complianceInfo.aisleViolations > 0 || complianceInfo.wallViolations > 0
 
+  if (loadState === 'loading') {
+    return (
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', color: theme.text }}>
+        <p style={{ fontWeight: 600, fontSize: 15 }}>Loading layout…</p>
+      </div>
+    )
+  }
+  if (loadState === 'error') {
+    return (
+      <div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', padding: 24 }}>
+        <div style={{ textAlign: 'center', maxWidth: 400 }}>
+          <p style={{ fontSize: 15, color: theme.text, marginBottom: 12 }}>{loadError ?? 'Something went wrong'}</p>
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+            <Link href="/" style={{ padding: '10px 18px', background: theme.accent, color: '#fff', borderRadius: 8, textDecoration: 'none', fontWeight: 600, fontSize: 14 }}>
+              Back to app
+            </Link>
+            {user && (
+              <Link href="/layouts" style={{ padding: '10px 18px', background: 'transparent', border: `1px solid ${theme.border}`, color: theme.text, borderRadius: 8, textDecoration: 'none', fontWeight: 600, fontSize: 14 }}>
+                My layouts
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ width: '100vw', height: '100vh', position: 'relative', overflow: 'hidden', backgroundColor: '#1a1a1a' }}>
+    <div className="layout-editor" style={{ width: '100%', height: '100%', minHeight: '100dvh', position: 'relative', overflow: 'hidden', backgroundColor: '#1a1a1a' }}>
 
       {/* ── Full-viewport 3D Canvas ── */}
       <div
@@ -1130,7 +1441,7 @@ export default function LayoutDesigner3D() {
         <DynamicCanvas
           furniture={furniture}
           panoramaImage={panoramaImage}
-          onFurnitureDrop={handleFurnitureDrop}
+          onFurnitureDrop={isViewOnly ? () => {} : handleFurnitureDrop}
           isPlacing={isDragging && selectedTemplate !== null}
           furnitureTemplates={furnitureTemplates}
           floorLevelY={floorLevelY}
@@ -1144,7 +1455,7 @@ export default function LayoutDesigner3D() {
               setSelectedItemIds([id])
             }
           }}
-          onFurnitureMove={(id: string, pos: [number, number, number]) => {
+          onFurnitureMove={isViewOnly ? () => {} : (id: string, pos: [number, number, number]) => {
             updateFurniture(prev => prev.map(item => item.id === id ? { ...item, position: pos } : item))
           }}
           snapToGrid={snapToGrid}
@@ -1206,31 +1517,92 @@ export default function LayoutDesigner3D() {
           borderBottom: `2px solid ${theme.accentLight}`,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="header-brand" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <img src="/images/coe-logo.svg" alt="City of Edmonton" style={{ height: 32 }} />
           <span style={{ color: '#fff', fontSize: 15, fontWeight: 600 }}>3D Layout Designer</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="header-mid" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <select className="csel" value={selectedVenue.id} onChange={(e) => handleVenueChange(e.target.value)}>
             {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
           <select className="csel" value={selectedLocation.id} onChange={(e) => handleLocationChange(e.target.value)}>
             {selectedVenue.locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
           </select>
+          {cloudLayoutId && user && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              {showRenameInput ? (
+                <>
+                  <input
+                    type="text"
+                    value={renameInputValue}
+                    onChange={(e) => setRenameInputValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        renameLayout(cloudLayoutId, renameInputValue.trim()).then(({ error }) => {
+                          if (!error) setLayoutName(renameInputValue.trim())
+                          setShowRenameInput(false)
+                        })
+                      }
+                      if (e.key === 'Escape') setShowRenameInput(false)
+                    }}
+                    onBlur={() => {
+                      if (renameInputValue.trim()) {
+                        renameLayout(cloudLayoutId, renameInputValue.trim()).then(({ error }) => {
+                          if (!error) setLayoutName(renameInputValue.trim())
+                        })
+                      }
+                      setShowRenameInput(false)
+                    }}
+                    autoFocus
+                    style={{ width: 180, padding: '4px 8px', fontSize: 13, border: 'none', borderRadius: 6, background: 'rgba(255,255,255,0.2)', color: '#fff', boxSizing: 'border-box' }}
+                    placeholder="Layout name"
+                  />
+                </>
+              ) : (
+                <>
+                  <span style={{ color: 'rgba(255,255,255,0.9)', fontSize: 13 }}>{layoutName ?? 'Untitled layout'}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setRenameInputValue(layoutName ?? ''); setShowRenameInput(true) }}
+                    style={{ padding: '2px 6px', fontSize: 11, background: 'rgba(255,255,255,0.2)', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' }}
+                    title="Rename layout"
+                  >
+                    Edit
+                  </button>
+                </>
+              )}
+            </div>
+          )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <button
-            onClick={handleSave}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-              backgroundColor: saveConfirmation ? theme.success : theme.accentLight,
-              color: saveConfirmation ? '#fff' : theme.accent,
-              border: 'none', borderRadius: theme.radiusSm, cursor: 'pointer',
-              fontWeight: 600, fontSize: 13, transition: 'all 200ms',
-            }}
-          >
-            {saveConfirmation ? '✓ Saved' : 'Save'}
-          </button>
+        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {presenceUsers.length > 1 && (
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>
+              {presenceUsers.length} viewing
+            </span>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {saveError && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: theme.danger, maxWidth: 200 }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{saveError}</span>
+                <button type="button" onClick={() => setSaveError(null)} style={{ background: 'none', border: 'none', color: theme.danger, cursor: 'pointer', padding: 0, fontSize: 14, lineHeight: 1 }} aria-label="Dismiss">×</button>
+              </span>
+            )}
+            <button
+              onClick={handleSave}
+              disabled={cloudSaveLoading || (canSaveToCloud && isViewOnly)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+                backgroundColor: saveConfirmation ? theme.success : theme.accentLight,
+                color: saveConfirmation ? '#fff' : theme.accent,
+                border: 'none', borderRadius: theme.radiusSm, cursor: cloudSaveLoading ? 'wait' : 'pointer',
+                fontWeight: 600, fontSize: 13, transition: 'all 200ms',
+              }}
+              title={canSaveToCloud ? 'Save (Ctrl+S)' : 'Save to local storage'}
+            >
+              {cloudSaveLoading ? 'Saving…' : saveConfirmation ? '✓ Saved' : 'Save'}
+              {isDirty && !cloudSaveLoading && !saveConfirmation && <span style={{ fontSize: 10, opacity: 0.9 }}>·</span>}
+            </button>
+          </div>
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setShowOverflowMenu(prev => !prev)}
@@ -1246,43 +1618,57 @@ export default function LayoutDesigner3D() {
             {showOverflowMenu && (
               <>
                 <div style={{ position: 'fixed', inset: 0, zIndex: 299 }} onClick={() => setShowOverflowMenu(false)} />
-                <div className="omenu glass" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 200, borderRadius: theme.radius, padding: '6px 0', zIndex: 300, animation: 'fadeIn 150ms ease' }}>
-                  <button onClick={() => { setShowOverflowMenu(false); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (ev) => { const file = (ev.target as HTMLInputElement).files?.[0]; if (file) setPanoramaImage(URL.createObjectURL(file)); }; input.click(); }}>
-                    Load Panorama
-                  </button>
-                  <button onClick={() => { setShowOverflowMenu(false); handleImportModel(); }}>
-                    Import 3D
-                  </button>
+                <div className="omenu glass" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, minWidth: 200, borderRadius: theme.radius, padding: '8px 0', zIndex: 300, animation: 'fadeIn 150ms ease' }}>
+                  {/* Space: venue/location (visible on mobile when header-mid hidden) */}
+                  <div className="menu-section">
+                    <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px', color: theme.textSecondary, padding: '4px 16px 6px', fontWeight: 600 }}>Space</div>
+                    <div style={{ padding: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <select className="csel" value={selectedVenue.id} onChange={(e) => handleVenueChange(e.target.value)} style={{ width: '100%' }}>
+                        {venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                      </select>
+                      <select className="csel" value={selectedLocation.id} onChange={(e) => handleLocationChange(e.target.value)} style={{ width: '100%' }}>
+                        {selectedVenue.locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                      </select>
+                      {cloudLayoutId && user && layoutName && (
+                        <div style={{ fontSize: 12, color: theme.textSecondary }}>{layoutName}</div>
+                      )}
+                    </div>
+                  </div>
                   <hr />
-                  <button onClick={() => { setShowOverflowMenu(false); handleExport(); }}>
-                    Export PNG
-                  </button>
-                  <button onClick={() => { setShowOverflowMenu(false); handleExportFloorPlan(); }}>
-                    Floor Plan
-                  </button>
-                  <button onClick={() => { setShowOverflowMenu(false); handleExportReport(); }}>
-                    Report
-                  </button>
-                  <button onClick={() => { setShowOverflowMenu(false); handleShare(); }}>
-                    Share
-                  </button>
+                  {user ? (
+                    <a href="/layouts" style={{ display: 'block', padding: '10px 16px', color: theme.text, textDecoration: 'none', fontSize: 13 }} onClick={() => setShowOverflowMenu(false)}>My layouts</a>
+                  ) : (
+                    <a href={loginRedirectUrl} style={{ display: 'block', padding: '10px 16px', color: theme.text, textDecoration: 'none', fontSize: 13 }} onClick={() => setShowOverflowMenu(false)}>Sign in</a>
+                  )}
+                  {(cloudLayoutId || shareToken) && (
+                    <>
+                      <button onClick={() => { setShowOverflowMenu(false); setShowShareDialog(true); }}>Share</button>
+                      {cloudLayoutId && user && (
+                        <>
+                          <button onClick={async () => { setShowOverflowMenu(false); setShowVersionHistory(true); const r = await listVersions(cloudLayoutId); if (r.data) setLayoutVersions(r.data); }}>Version history</button>
+                          <button onClick={() => { setShowOverflowMenu(false); setRenameInputValue(layoutName ?? ''); setShowRenameInput(true) }}>Rename</button>
+                          <button onClick={async () => { setShowOverflowMenu(false); setDuplicateInProgress(true); const { error, id } = await duplicateLayout(cloudLayoutId); setDuplicateInProgress(false); if (!error && id) window.location.href = `/?layoutId=${id}` }} disabled={duplicateInProgress}>{duplicateInProgress ? '…' : 'Duplicate'}</button>
+                        </>
+                      )}
+                    </>
+                  )}
                   <hr />
-                  <button onClick={() => { setShowOverflowMenu(false); setShowGuestPanel(prev => !prev); }}>
-                    Guests {showGuestPanel ? '✓' : ''}
-                  </button>
-                  <button onClick={() => { setShowOverflowMenu(false); setShowMiniMap(prev => !prev); }}>
-                    Floor Plan View {showMiniMap ? '✓' : ''}
-                  </button>
-                  <button onClick={() => { setShowOverflowMenu(false); setShowCopyFrom(true); }}>
-                    Copy From…
-                  </button>
+                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px', color: theme.textSecondary, padding: '4px 16px 4px', fontWeight: 600 }}>Export</div>
+                  <button onClick={() => { setShowOverflowMenu(false); handleExport(); }}>PNG</button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleExportFloorPlan(); }}>Floor plan</button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleExportReport(); }}>Report</button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleShare(); }}>Copy link</button>
                   <hr />
-                  <button onClick={() => { setShowOverflowMenu(false); setFurniture([]); }}>
-                    Clear All
-                  </button>
-                  <button onClick={() => { setShowOverflowMenu(false); handleReset(); }} style={{ color: theme.danger }}>
-                    Reset
-                  </button>
+                  <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px', color: theme.textSecondary, padding: '4px 16px 4px', fontWeight: 600 }}>View</div>
+                  <button onClick={() => { setShowOverflowMenu(false); setShowGuestPanel(prev => !prev); }}>Guests {showGuestPanel ? '✓' : ''}</button>
+                  <button onClick={() => { setShowOverflowMenu(false); setShowMiniMap(prev => !prev); }}>Floor plan {showMiniMap ? '✓' : ''}</button>
+                  <button onClick={() => { setShowOverflowMenu(false); setShowCopyFrom(true); }}>Copy from…</button>
+                  <button onClick={() => { setShowOverflowMenu(false); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (ev) => { const file = (ev.target as HTMLInputElement).files?.[0]; if (file) setPanoramaImage(URL.createObjectURL(file)); }; input.click(); }}>Load panorama</button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleImportModel(); }}>Import 3D</button>
+                  <hr />
+                  <button onClick={() => { setShowOverflowMenu(false); setShowKeyboardShortcuts(true); }}>Shortcuts</button>
+                  <button onClick={() => { setShowOverflowMenu(false); setFurniture([]); }} disabled={isViewOnly}>Clear all</button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleReset(); }} style={{ color: theme.danger }} disabled={isViewOnly}>Reset</button>
                 </div>
               </>
             )}
@@ -1298,7 +1684,7 @@ export default function LayoutDesigner3D() {
       )}
       {showFurniturePanel && (
         <aside
-          className="glass"
+          className="glass panel-left"
           style={{
             position: 'absolute', top: 60, left: 12, bottom: 68, width: 240, zIndex: 100,
             borderRadius: theme.radius, padding: 0, display: 'flex', flexDirection: 'column',
@@ -1379,7 +1765,7 @@ export default function LayoutDesigner3D() {
 
         return (
           <aside
-            className="glass"
+            className="glass panel-right"
             style={{
               position: 'absolute', top: 60, right: 12, width: 260, zIndex: 100,
               borderRadius: theme.radius, padding: 14, maxHeight: 'calc(100vh - 130px)',
@@ -1481,7 +1867,7 @@ export default function LayoutDesigner3D() {
 
       {/* ── BOTTOM TOOL STRIP ── */}
       <div
-        className="glass"
+        className="glass bottom-bar"
         style={{
           position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)',
           zIndex: 150, height: 44, borderRadius: 22, padding: '0 8px',
@@ -1524,7 +1910,7 @@ export default function LayoutDesigner3D() {
       {/* ── GUEST PANEL ── */}
       {showGuestPanel && (
         <aside
-          className="glass"
+          className="glass guest-panel"
           style={{
             position: 'absolute', top: 60, left: showFurniturePanel ? 264 : 12, width: 260, zIndex: 120,
             borderRadius: theme.radius, maxHeight: 'calc(100vh - 130px)', overflow: 'hidden',
@@ -1649,6 +2035,295 @@ export default function LayoutDesigner3D() {
           </div>
         </>
       )}
+
+      {/* ── SHARE LINK DIALOG ── */}
+      {showShareDialog && (cloudLayoutId || shareToken) && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 199, background: 'rgba(0,0,0,0.3)' }} onClick={() => { setShowShareDialog(false); setShareLinkCopied(false) }} />
+          <div
+            className="glass"
+            style={{
+              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              zIndex: 200, minWidth: 360, borderRadius: theme.radius, overflow: 'hidden',
+              animation: 'fadeIn 200ms ease',
+            }}
+          >
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>Share layout</span>
+              <button onClick={() => { setShowShareDialog(false); setShareLinkCopied(false) }} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: theme.textSecondary, lineHeight: 1, padding: 0 }}>×</button>
+            </div>
+            <div style={{ padding: 16 }}>
+              <p style={{ fontSize: 13, color: theme.textSecondary, marginBottom: 12 }}>
+                Anyone with the link can {shareToken ? (shareRole === 'edit' ? 'view and edit' : 'view') : 'view and edit'} this layout.
+              </p>
+              <ShareLinkForm
+                layoutId={cloudLayoutId}
+                shareToken={shareToken}
+                onCreated={(link) => {
+                  navigator.clipboard.writeText(link).then(() => setShareLinkCopied(true))
+                }}
+                linkCopied={shareLinkCopied}
+                onClose={() => { setShowShareDialog(false); setShareLinkCopied(false) }}
+              />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── VERSION HISTORY PANEL ── */}
+      {showVersionHistory && cloudLayoutId && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 199, background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowVersionHistory(false)} />
+          <div
+            className="glass"
+            style={{
+              position: 'absolute', top: 60, right: 280, bottom: 68, width: 280, zIndex: 200,
+              borderRadius: theme.radius, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+              animation: 'fadeIn 200ms ease',
+            }}
+          >
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>Version history</span>
+              <button onClick={() => setShowVersionHistory(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: theme.textSecondary, lineHeight: 1, padding: 0 }}>×</button>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
+              {layoutVersions.length === 0 && <p style={{ fontSize: 13, color: theme.textSecondary }}>No versions yet. Save to create one.</p>}
+              {layoutVersions.map((v) => (
+                <div
+                  key={v.id}
+                  style={{
+                    padding: '10px 12px',
+                    borderRadius: 8,
+                    marginBottom: 6,
+                    background: 'rgba(0,0,0,0.03)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  }}
+                >
+                  <span style={{ fontSize: 13, color: theme.text }}>Version {v.version_number}</span>
+                  <span style={{ fontSize: 11, color: theme.textSecondary }}>{new Date(v.created_at).toLocaleString()}</span>
+                  <button
+                    onClick={async () => {
+                      const res = await getVersion(cloudLayoutId, v.id)
+                      if (res.data) {
+                        const restored = (res.data.furniture ?? []).map((f: { type: string }) => ({ ...f, type: f.type as FurnitureItem['type'] })) as FurnitureItem[]
+                        setFurniture(restored)
+                        setFloorLevelY(res.data.floorLevelY ?? 0)
+                        setGuests(res.data.guests ?? [])
+                        setGuestAssignments(res.data.guestAssignments ?? {})
+                        setItemColors(res.data.itemColors ?? {})
+                        setHistory([restored])
+                        setHistoryIndex(0)
+                        setShowVersionHistory(false)
+                      }
+                    }}
+                    style={{ padding: '4px 10px', fontSize: 11, background: theme.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    Restore
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding: 12, borderTop: `1px solid ${theme.border}` }}>
+              <button
+                onClick={async () => {
+                  const snap = buildSnapshot()
+                  await saveVersion(cloudLayoutId, snap)
+                  const r = await listVersions(cloudLayoutId)
+                  if (r.data) setLayoutVersions(r.data)
+                }}
+                style={{ width: '100%', padding: 8, fontSize: 12, fontWeight: 600, background: theme.accent, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}
+              >
+                Save new version
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Keyboard shortcuts modal */}
+      {showKeyboardShortcuts && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 199, background: 'rgba(0,0,0,0.3)' }} onClick={() => setShowKeyboardShortcuts(false)} />
+          <div
+            className="glass"
+            style={{
+              position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+              zIndex: 200, minWidth: 320, maxWidth: 360, borderRadius: theme.radius, overflow: 'hidden',
+              animation: 'fadeIn 200ms ease',
+            }}
+          >
+            <div style={{ padding: '12px 16px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>Keyboard shortcuts</span>
+              <button onClick={() => setShowKeyboardShortcuts(false)} style={{ background: 'none', border: 'none', fontSize: 18, cursor: 'pointer', color: theme.textSecondary, lineHeight: 1, padding: 0 }}>×</button>
+            </div>
+            <div style={{ padding: 16 }}>
+              {[
+                { keys: 'Ctrl+S', desc: 'Save' },
+                { keys: 'Ctrl+Z', desc: 'Undo' },
+                { keys: 'Ctrl+Shift+Z', desc: 'Redo' },
+                { keys: 'Ctrl+D', desc: 'Duplicate selected' },
+                { keys: 'Delete / Backspace', desc: 'Delete selected' },
+                { keys: 'Escape', desc: 'Cancel / Deselect' },
+                { keys: 'Arrow keys', desc: 'Nudge selected' },
+              ].map((row) => (
+                <div key={row.keys} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: `1px solid ${theme.border}` }}>
+                  <span style={{ fontSize: 13, color: theme.textSecondary }}>{row.desc}</span>
+                  <kbd style={{ fontSize: 12, padding: '4px 8px', background: 'rgba(0,0,0,0.06)', borderRadius: 6, fontFamily: 'inherit' }}>{row.keys}</kbd>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* View-only banner */}
+      {isViewOnly && (
+        <div style={{ position: 'absolute', top: 50, left: '50%', transform: 'translateX(-50%)', zIndex: 160, pointerEvents: 'none' }}>
+          <div className="glass" style={{ padding: '8px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600, color: theme.accent, border: `1px solid ${theme.accentLight}` }}>
+            View only – you can’t edit this layout
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <React.Suspense fallback={<div style={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fa', color: '#003366', fontWeight: 600 }}>Loading…</div>}>
+      <LayoutDesigner3D />
+    </React.Suspense>
+  )
+}
+
+type ShareLinkRow = { id: string; token: string; role: 'view' | 'edit'; expires_at: string | null; created_at: string }
+
+function ShareLinkForm({
+  layoutId,
+  shareToken,
+  onCreated,
+  linkCopied,
+  onClose,
+}: {
+  layoutId: string | null
+  shareToken: string | null
+  onCreated: (link: string) => void
+  linkCopied: boolean
+  onClose: () => void
+}) {
+  const [role, setRole] = useState<'view' | 'edit'>('edit')
+  const [creating, setCreating] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [existingLinks, setExistingLinks] = useState<ShareLinkRow[]>([])
+  const [revokingId, setRevokingId] = useState<string | null>(null)
+  const [copiedLink, setCopiedLink] = useState<string | null>(null)
+
+  const loadLinks = React.useCallback(() => {
+    if (!layoutId) return
+    import('./actions/layouts').then(({ listShareLinks }) => {
+      listShareLinks(layoutId).then(({ data }) => {
+        if (data) setExistingLinks(data)
+      })
+    })
+  }, [layoutId])
+
+  React.useEffect(() => {
+    if (layoutId && !shareToken) loadLinks()
+  }, [layoutId, shareToken, loadLinks])
+
+  const handleCreate = async () => {
+    if (!layoutId) return
+    setCreating(true)
+    setError(null)
+    try {
+      const { createShareLink } = await import('./actions/layouts')
+      const res = await createShareLink(layoutId, role, 30)
+      if (res.error) throw new Error(res.error)
+      if (res.token) {
+        const base = typeof window !== 'undefined' ? window.location.origin : ''
+        const link = `${base}/s/${res.token}`
+        onCreated(link)
+        loadLinks()
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to create link')
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  if (shareToken) {
+    const base = typeof window !== 'undefined' ? window.location.origin : ''
+    const link = `${base}/s/${shareToken}`
+    return (
+      <div>
+        <input readOnly value={link} style={{ width: '100%', padding: 8, fontSize: 12, border: `1px solid ${theme.border}`, borderRadius: 6, marginBottom: 8, boxSizing: 'border-box' }} />
+        <button onClick={() => { navigator.clipboard.writeText(link); onCreated(link) }} style={{ padding: '8px 16px', background: theme.accent, color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>
+          {linkCopied ? 'Copied!' : 'Copy link'}
+        </button>
+      </div>
+    )
+  }
+
+  const base = typeof window !== 'undefined' ? window.location.origin : ''
+  return (
+    <div>
+      {existingLinks.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: theme.textSecondary, marginBottom: 8 }}>Existing links</div>
+          {existingLinks.map((row) => {
+            const link = `${base}/s/${row.token}`
+            const isExpired = row.expires_at && new Date(row.expires_at) < new Date()
+            return (
+              <div
+                key={row.id}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+                  padding: '8px 10px', borderRadius: 8, background: 'rgba(0,0,0,0.04)', marginBottom: 6,
+                }}
+              >
+                <span style={{ fontSize: 12, color: theme.text, flex: '1 1 120px' }}>
+                  …{row.token.slice(-8)} · {row.role}
+                  {row.expires_at && (
+                    <span style={{ color: theme.textSecondary }}> · {isExpired ? 'Expired' : `Expires ${new Date(row.expires_at).toLocaleDateString()}`}</span>
+                  )}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { navigator.clipboard.writeText(link); setCopiedLink(link); setTimeout(() => setCopiedLink(null), 1500) }}
+                  style={{ padding: '4px 10px', fontSize: 11, background: theme.accent, color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
+                >
+                  {copiedLink === link ? 'Copied' : 'Copy'}
+                </button>
+                <button
+                  type="button"
+                  disabled={revokingId !== null}
+                  onClick={async () => {
+                    setRevokingId(row.id)
+                    const { revokeShareToken } = await import('./actions/layouts')
+                    await revokeShareToken(layoutId!, row.id)
+                    loadLinks()
+                    setRevokingId(null)
+                  }}
+                  style={{ padding: '4px 10px', fontSize: 11, background: 'transparent', border: `1px solid ${theme.danger}`, color: theme.danger, borderRadius: 6, cursor: revokingId ? 'wait' : 'pointer' }}
+                >
+                  Revoke
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <label style={{ display: 'block', fontSize: 12, marginBottom: 4, color: theme.textSecondary }}>Create new link</label>
+      <select value={role} onChange={(e) => setRole(e.target.value as 'view' | 'edit')} style={{ width: '100%', padding: 8, marginBottom: 12, border: `1px solid ${theme.border}`, borderRadius: 6 }}>
+        <option value="view">View only</option>
+        <option value="edit">Can edit</option>
+      </select>
+      {error && <p style={{ color: theme.danger, fontSize: 12, marginBottom: 8 }}>{error}</p>}
+      <button onClick={handleCreate} disabled={creating} style={{ padding: '8px 16px', background: theme.accent, color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, cursor: creating ? 'wait' : 'pointer', fontWeight: 600 }}>
+        {creating ? 'Creating…' : 'Create share link'}
+      </button>
+      <p style={{ marginTop: 8, fontSize: 11, color: theme.textSecondary }}>Link expires in 30 days.</p>
     </div>
   )
 }

@@ -13,6 +13,29 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Save, share, and live collaboration (Supabase)
+
+To enable cloud save, version history, share links, and live collaboration:
+
+1. Create a [Supabase](https://supabase.com) project.
+2. Copy `.env.local.example` to `.env.local` and set:
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+3. In the Supabase SQL editor, run the migration:
+   - `supabase/migrations/001_initial.sql`
+4. In Supabase Dashboard → Authentication → Providers, enable **Email** (and optionally confirm email).
+
+Then:
+
+- **Sign in** (top-right menu → “Sign in to save & share”) to create an account.
+- **Save** stores the current layout to the cloud and creates a “My layouts” entry.
+- **My layouts** (menu) lists your saved layouts; open one to continue editing.
+- **Share link** (menu when a layout is saved) creates a link you can send to clients; they open `/s/<token>` and can view or edit depending on the permission you chose.
+- **Version history** (menu when a layout is saved) lists snapshots; use **Restore** to roll back, or **Save new version** to create a checkpoint.
+- **Live collaboration**: everyone with the same layout open (owner or shared link) sees presence (“X viewing”) and receives updates every few seconds so edits sync in real time.
+
+Without Supabase configured, the app still runs: layouts are saved only to the browser (localStorage) and the in-URL share (copy link) still works for one-time sharing.
+
 ## Build
 
 ```bash
