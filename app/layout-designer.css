@@ -232,6 +232,20 @@ html, body {
   .tbtn, .ptab { min-height: 36px; min-width: 36px; }
 }
 
+/* Dark mode */
+html.dark .glass {
+  background: rgba(30, 30, 30, 0.92);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+}
+html.dark .omenu button,
+html.dark .omenu a { color: #e5e5e5; }
+html.dark .omenu .menu-section > div:first-child { color: #a3a3a3; }
+html.dark .csel,
+html.dark input[type="text"],
+html.dark input[type="email"],
+html.dark textarea { background: rgba(0,0,0,0.2); border-color: rgba(255,255,255,0.1); color: #fff; }
+
 /* Print: hide app UI, show only print overlay */
 @media print {
   .layout-editor { display: none !important; }

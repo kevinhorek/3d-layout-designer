@@ -19,3 +19,8 @@ Thumbs.db
 
 # Supabase
 supabase/.temp/
+
+# Playwright / TS build info
+playwright-report/
+test-results/
+*.tsbuildinfo

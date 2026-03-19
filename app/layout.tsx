@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './layout-designer.css'
+import { RegisterSw } from './RegisterSw'
 
 export const metadata: Metadata = {
   title: '3D Layout Designer',
@@ -35,6 +36,7 @@ export default function RootLayout({
         padding: 0,
         overflow: 'hidden',
       }}>
+        <RegisterSw />
         {children}
       </body>
     </html>

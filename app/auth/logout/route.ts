@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
+import { getPublicOrigin } from '@/lib/requestOrigin'
 import { NextResponse } from 'next/server'
 
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createClient()
   await supabase.auth.signOut()
-  return NextResponse.redirect(new URL('/', process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'), 302)
+  const origin = getPublicOrigin(request)
+  return NextResponse.redirect(new URL('/', origin), 302)
 }

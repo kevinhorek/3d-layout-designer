@@ -17,8 +17,8 @@ import {
   duplicateLayout,
 } from './actions/layouts'
 import { saveVersion, listVersions, getVersion } from './actions/versions'
-import { listTemplates, createTemplate } from './actions/templates'
-import { listComments, addComment } from './actions/comments'
+import { listTemplates, createTemplate, deleteTemplate, updateTemplate } from './actions/templates'
+import { listComments, addComment, deleteComment, listCommentsByShareToken, addCommentByShareToken, deleteCommentByShareToken } from './actions/comments'
 import { getVenuesWithLocations } from './actions/venues'
 import type { LayoutSnapshot } from '@/lib/db/types'
 import { jsPDF } from 'jspdf'
@@ -333,6 +333,7 @@ const MAX_HISTORY = 50
 
 function LayoutDesigner3D() {
   const [venuesList, setVenuesList] = useState<Venue[]>(venues)
+  const [venuesLoading, setVenuesLoading] = useState(true)
   const [selectedVenue, setSelectedVenue] = useState<Venue>(() => getDefaultVenue())
   const [selectedLocation, setSelectedLocation] = useState<VenueLocation>(() =>
     getDefaultLocation(getDefaultVenue())
@@ -358,7 +359,11 @@ function LayoutDesigner3D() {
   const [showCommentsPanel, setShowCommentsPanel] = useState(false)
   const [layoutComments, setLayoutComments] = useState<Array<{ id: string; body: string; author_id: string; created_at: string }>>([])
   const [newCommentBody, setNewCommentBody] = useState('')
-  const [templateList, setTemplateList] = useState<Array<{ id: string; name: string; venue_id: string; location_id: string; snapshot: LayoutSnapshot }>>([])
+  const [templateList, setTemplateList] = useState<Array<{ id: string; name: string; venue_id: string; location_id: string; snapshot: LayoutSnapshot; owner_id: string | null }>>([])
+  const [templateListLoading, setTemplateListLoading] = useState(false)
+  const [renamingTemplateId, setRenamingTemplateId] = useState<string | null>(null)
+  const [renameTemplateValue, setRenameTemplateValue] = useState('')
+  const [darkMode, setDarkMode] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('dark') === '1' : false))
   const [history, setHistory] = useState<FurnitureItem[][]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const [editingRotation, setEditingRotation] = useState<Record<string, string>>({})
@@ -977,6 +982,22 @@ function LayoutDesigner3D() {
     link.click()
   }, [getFloorPlanImage, selectedVenue.id, selectedLocation.id])
 
+  const handleExportGuestList = useCallback(() => {
+    const rows: string[][] = [['Guest', 'Table']]
+    for (const guest of guests) {
+      const entry = Object.entries(guestAssignments).find(([, names]) => names?.includes(guest))
+      const tableNum = entry ? tableNumbers[entry[0]] ?? '—' : '—'
+      rows.push([guest.replace(/"/g, '""'), String(tableNum)])
+    }
+    const csv = rows.map((r) => r.map((c) => `"${c}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const link = document.createElement('a')
+    link.download = `guest-list-${selectedVenue.id}-${selectedLocation.id}-${Date.now()}.csv`
+    link.href = URL.createObjectURL(blob)
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }, [guests, guestAssignments, tableNumbers, selectedVenue.id, selectedLocation.id])
+
   const handlePrint = useCallback(() => {
     const result = getFloorPlanImage()
     if (!result) return
@@ -1004,14 +1025,26 @@ function LayoutDesigner3D() {
     return () => clearTimeout(t)
   }, [showPrintView, printImageUrl])
 
+  const refreshTemplateList = useCallback(() => {
+    listTemplates().then(({ data }) => {
+      setTemplateList((data ?? []).map((t) => ({ ...t, snapshot: t.snapshot as LayoutSnapshot, owner_id: t.owner_id ?? null })))
+    })
+  }, [])
+
   useEffect(() => {
     if (!showTemplatePicker) return
-    listTemplates().then(({ data }) => setTemplateList((data ?? []).map((t) => ({ ...t, snapshot: t.snapshot as LayoutSnapshot }))))
+    setTemplateListLoading(true)
+    listTemplates().then(({ data }) => {
+      setTemplateList((data ?? []).map((t) => ({ ...t, snapshot: t.snapshot as LayoutSnapshot, owner_id: t.owner_id ?? null })))
+      setTemplateListLoading(false)
+    })
   }, [showTemplatePicker])
 
   useEffect(() => {
+    setVenuesLoading(true)
     getVenuesWithLocations().then(({ error, data }) => {
       if (!error && data && data.length > 0) setVenuesList(data)
+      setVenuesLoading(false)
     })
   }, [])
 
@@ -1020,6 +1053,11 @@ function LayoutDesigner3D() {
     const t = setTimeout(() => setToast(null), 3000)
     return () => clearTimeout(t)
   }, [toast])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+    if (typeof window !== 'undefined') localStorage.setItem('dark', darkMode ? '1' : '0')
+  }, [darkMode])
 
   const handleShare = useCallback(() => {
     const data = {
@@ -1577,7 +1615,8 @@ function LayoutDesigner3D() {
           {shareToken && <span style={{ background: 'rgba(255,255,255,0.25)', color: '#fff', fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 6 }}>Shared</span>}
         </div>
         <div className="header-mid" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <select className="csel" value={selectedVenue.id} onChange={(e) => handleVenueChange(e.target.value)}>
+          <select className="csel" value={selectedVenue.id} onChange={(e) => handleVenueChange(e.target.value)} disabled={venuesLoading} title={venuesLoading ? 'Loading venues…' : undefined}>
+            {venuesLoading && <option>Loading venues…</option>}
             {venuesList.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
           </select>
           <select className="csel" value={selectedLocation.id} onChange={(e) => handleLocationChange(e.target.value)}>
@@ -1632,6 +1671,9 @@ function LayoutDesigner3D() {
           ) : null}
         </div>
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 11, color: complianceInfo.overCapacity ? '#fca5a5' : 'rgba(255,255,255,0.85)', padding: '2px 8px', borderRadius: 6, background: complianceInfo.overCapacity ? 'rgba(239,68,68,0.2)' : 'rgba(255,255,255,0.1)' }} title="Seats / room capacity">
+            {complianceInfo.currentOccupancy}/{complianceInfo.maxOccupancy} seats
+          </span>
           {presenceUsers.length > 1 && (
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)' }}>
               {presenceUsers.length} viewing
@@ -1684,7 +1726,8 @@ function LayoutDesigner3D() {
                   <div className="menu-section">
                     <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px', color: theme.textSecondary, padding: '4px 16px 6px', fontWeight: 600 }}>Space</div>
                     <div style={{ padding: '0 12px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <select className="csel" value={selectedVenue.id} onChange={(e) => handleVenueChange(e.target.value)} style={{ width: '100%' }}>
+                      <select className="csel" value={selectedVenue.id} onChange={(e) => handleVenueChange(e.target.value)} style={{ width: '100%' }} disabled={venuesLoading}>
+                        {venuesLoading && <option>Loading…</option>}
                         {venuesList.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                       </select>
                       <select className="csel" value={selectedLocation.id} onChange={(e) => handleLocationChange(e.target.value)} style={{ width: '100%' }}>
@@ -1697,7 +1740,10 @@ function LayoutDesigner3D() {
                   </div>
                   <hr />
                   {user ? (
-                    <a href="/layouts" style={{ display: 'block', padding: '10px 16px', color: theme.text, textDecoration: 'none', fontSize: 13 }} onClick={() => setShowOverflowMenu(false)}>My layouts</a>
+                    <>
+                      <a href="/layouts" style={{ display: 'block', padding: '10px 16px', color: theme.text, textDecoration: 'none', fontSize: 13 }} onClick={() => setShowOverflowMenu(false)}>My layouts</a>
+                      <button type="button" onClick={async () => { setShowOverflowMenu(false); await createClient().auth.signOut(); window.location.href = '/'; }} style={{ display: 'block', width: '100%', padding: '10px 16px', border: 'none', background: 'none', textAlign: 'left', fontSize: 13, color: theme.textSecondary, cursor: 'pointer' }}>Sign out</button>
+                    </>
                   ) : (
                     <a href={loginRedirectUrl} style={{ display: 'block', padding: '10px 16px', color: theme.text, textDecoration: 'none', fontSize: 13 }} onClick={() => setShowOverflowMenu(false)}>Sign in</a>
                   )}
@@ -1721,17 +1767,21 @@ function LayoutDesigner3D() {
                   <button onClick={() => { setShowOverflowMenu(false); handleExport(); }}>PNG</button>
                   <button onClick={() => { setShowOverflowMenu(false); handleExportFloorPlan(); }}>Floor plan</button>
                   <button onClick={() => { setShowOverflowMenu(false); handleExportReport(); }}>Report</button>
+                  <button onClick={() => { setShowOverflowMenu(false); handleExportGuestList(); }}>Guest list (CSV)</button>
                   <button onClick={() => { setShowOverflowMenu(false); handleShare(); }}>Copy link</button>
                   <hr />
                   <div style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.5px', color: theme.textSecondary, padding: '4px 16px 4px', fontWeight: 600 }}>View</div>
                   <button onClick={() => { setShowOverflowMenu(false); setShowGuestPanel(prev => !prev); }}>Guests {showGuestPanel ? '✓' : ''}</button>
-                  <button onClick={async () => { setShowOverflowMenu(false); setShowCommentsPanel(prev => { const next = !prev; if (cloudLayoutId && next) listComments(cloudLayoutId).then((r) => r.data && setLayoutComments(r.data)); return next; }); }}>Notes {showCommentsPanel ? '✓' : ''}</button>
+                  {(cloudLayoutId || (shareToken && shareRole === 'edit')) && (
+                    <button onClick={async () => { setShowOverflowMenu(false); setShowCommentsPanel(prev => { const next = !prev; if (next) { if (shareToken && shareRole === 'edit') listCommentsByShareToken(shareToken).then((r) => r.data && setLayoutComments(r.data)); else if (cloudLayoutId) listComments(cloudLayoutId).then((r) => r.data && setLayoutComments(r.data)); } return next; }); }}>Notes {showCommentsPanel ? '✓' : ''}</button>
+                  )}
                   <button onClick={() => { setShowOverflowMenu(false); setShowMiniMap(prev => !prev); }}>Floor plan {showMiniMap ? '✓' : ''}</button>
                   <button onClick={() => { setShowOverflowMenu(false); setShowCopyFrom(true); }}>Copy from…</button>
                   <button onClick={() => { setShowOverflowMenu(false); const input = document.createElement('input'); input.type = 'file'; input.accept = 'image/*'; input.onchange = (ev) => { const file = (ev.target as HTMLInputElement).files?.[0]; if (file) setPanoramaImage(URL.createObjectURL(file)); }; input.click(); }}>Load panorama</button>
                   <button onClick={() => { setShowOverflowMenu(false); handleImportModel(); }}>Import 3D</button>
                   <hr />
                   <button onClick={() => { setShowOverflowMenu(false); setShowKeyboardShortcuts(true); }}>Shortcuts</button>
+                  <button onClick={() => { setShowOverflowMenu(false); setDarkMode((d) => !d); }}>Dark mode {darkMode ? '✓' : ''}</button>
                   <button onClick={() => { setShowOverflowMenu(false); setFurniture([]); }} disabled={isViewOnly}>Clear all</button>
                   <button onClick={() => { setShowOverflowMenu(false); handleReset(); }} style={{ color: theme.danger }} disabled={isViewOnly}>Reset</button>
                 </div>
@@ -2022,7 +2072,7 @@ function LayoutDesigner3D() {
       )}
 
       {/* ── NOTES / COMMENTS PANEL ── */}
-      {showCommentsPanel && cloudLayoutId && (
+      {showCommentsPanel && (cloudLayoutId || (shareToken && shareRole === 'edit')) && (
         <aside className="glass" style={{ position: 'absolute', top: 60, right: 12, width: 280, zIndex: 118, borderRadius: theme.radius, maxHeight: 'calc(100vh - 130px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: '12px 14px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontWeight: 600, fontSize: 14, color: theme.text }}>Notes</span>
@@ -2030,12 +2080,20 @@ function LayoutDesigner3D() {
           </div>
           <div style={{ flex: 1, overflowY: 'auto', padding: 12 }}>
             {layoutComments.map((c) => (
-              <div key={c.id} style={{ padding: '8px 10px', marginBottom: 8, background: 'rgba(0,0,0,0.04)', borderRadius: 8, fontSize: 13, color: theme.text }}>{c.body}</div>
+              <div key={c.id} style={{ padding: '8px 10px', marginBottom: 8, background: 'rgba(0,0,0,0.04)', borderRadius: 8, fontSize: 13, color: theme.text, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ marginBottom: 4 }}>{c.body}</div>
+                  <div style={{ fontSize: 11, color: theme.textSecondary }}>{new Date(c.created_at).toLocaleString()}</div>
+                </div>
+                {(cloudLayoutId && user) || (shareToken && shareRole === 'edit' && user && c.author_id === user.id) ? (
+                  <button type="button" onClick={async () => { if (shareToken) await deleteCommentByShareToken(shareToken, c.id); else if (cloudLayoutId) await deleteComment(cloudLayoutId, c.id); if (shareToken) { const r = await listCommentsByShareToken(shareToken); if (r.data) setLayoutComments(r.data); } else if (cloudLayoutId) { const r = await listComments(cloudLayoutId); if (r.data) setLayoutComments(r.data); } }} style={{ flexShrink: 0, background: 'none', border: 'none', color: theme.textSecondary, cursor: 'pointer', fontSize: 12, padding: 2 }} title="Delete note">×</button>
+                ) : null}
+              </div>
             ))}
           </div>
           <div style={{ padding: 12, borderTop: `1px solid ${theme.border}` }}>
             <textarea value={newCommentBody} onChange={(e) => setNewCommentBody(e.target.value)} placeholder="Add a note…" rows={2} style={{ width: '100%', padding: 8, fontSize: 13, border: `1px solid ${theme.border}`, borderRadius: 8, resize: 'vertical', boxSizing: 'border-box' }} />
-            <button onClick={async () => { if (!newCommentBody.trim()) return; await addComment(cloudLayoutId, newCommentBody); setNewCommentBody(''); const r = await listComments(cloudLayoutId); if (r.data) setLayoutComments(r.data); }} style={{ marginTop: 8, padding: '8px 14px', background: theme.accent, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add</button>
+            <button onClick={async () => { if (!newCommentBody.trim()) return; if (shareToken && shareRole === 'edit') { await addCommentByShareToken(shareToken, newCommentBody); setNewCommentBody(''); const r = await listCommentsByShareToken(shareToken); if (r.data) setLayoutComments(r.data); } else if (cloudLayoutId) { await addComment(cloudLayoutId, newCommentBody); setNewCommentBody(''); const r = await listComments(cloudLayoutId); if (r.data) setLayoutComments(r.data); } }} style={{ marginTop: 8, padding: '8px 14px', background: theme.accent, color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>Add</button>
           </div>
         </aside>
       )}
@@ -2271,36 +2329,72 @@ function LayoutDesigner3D() {
             </div>
             <div style={{ overflowY: 'auto', padding: 12 }}>
               <button type="button" onClick={() => setShowTemplatePicker(false)} style={{ width: '100%', padding: 12, marginBottom: 8, textAlign: 'left', background: 'rgba(0,51,102,0.06)', border: `1px solid ${theme.accent}`, borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: theme.accent }}>Start from scratch</button>
+              {templateListLoading ? (
+                <p style={{ fontSize: 13, color: theme.textSecondary, margin: '8px 0', padding: 8 }}>Loading templates…</p>
+              ) : templateList.length === 0 ? (
+                <p style={{ fontSize: 13, color: theme.textSecondary, margin: '8px 0', padding: 8 }}>No templates yet. Use “Save as template” from the menu on a saved layout to create one.</p>
+              ) : null}
               {templateList.map((t) => {
                 const venue = findVenueById(t.venue_id)
                 const location = venue && findLocationById(venue, t.location_id)
+                const isOwn = user && t.owner_id === user.id
+                const isRenaming = renamingTemplateId === t.id
                 return (
-                  <button
-                    key={t.id}
-                    type="button"
-                    onClick={() => {
-                      if (venue) setSelectedVenue(venue)
-                      if (location) {
-                        setSelectedLocation(location)
-                        setRoomDimensions(location.roomDimensions)
-                        setPanoramaImage(location.panorama)
-                      }
-                      const snap = t.snapshot
-                      const items = (snap.furniture ?? []).map((f) => ({ ...f, type: f.type as FurnitureItem['type'] }))
-                      setFurniture(items)
-                      if (snap.floorLevelY !== undefined) setFloorLevelY(snap.floorLevelY)
-                      if (snap.guests) setGuests(snap.guests)
-                      if (snap.guestAssignments) setGuestAssignments(snap.guestAssignments ?? {})
-                      if (snap.itemColors) setItemColors(snap.itemColors ?? {})
-                      if (snap.customModels?.length) setCustomModels(snap.customModels)
-                      setHistory([items])
-                      setHistoryIndex(0)
-                      setShowTemplatePicker(false)
-                    }}
-                    style={{ width: '100%', padding: 12, marginBottom: 6, textAlign: 'left', background: 'rgba(0,0,0,0.03)', border: `1px solid ${theme.border}`, borderRadius: 8, cursor: 'pointer', fontSize: 13 }}
-                  >
-                    {t.name}
-                  </button>
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                    {isRenaming ? (
+                      <input
+                        type="text"
+                        value={renameTemplateValue}
+                        onChange={(e) => setRenameTemplateValue(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            updateTemplate(t.id, renameTemplateValue).then((err) => {
+                              if (!err.error) { refreshTemplateList(); setRenamingTemplateId(null); }
+                            });
+                          }
+                          if (e.key === 'Escape') setRenamingTemplateId(null);
+                        }}
+                        onBlur={() => {
+                          if (renameTemplateValue.trim()) {
+                            updateTemplate(t.id, renameTemplateValue).then((err) => {
+                              if (!err.error) { refreshTemplateList(); setRenamingTemplateId(null); }
+                            });
+                          }
+                          setRenamingTemplateId(null);
+                        }}
+                        autoFocus
+                        style={{ flex: 1, padding: 8, fontSize: 13, border: `1px solid ${theme.border}`, borderRadius: 8, boxSizing: 'border-box' }}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (venue) setSelectedVenue(venue)
+                          if (location) { setSelectedLocation(location); setRoomDimensions(location.roomDimensions); setPanoramaImage(location.panorama) }
+                          const snap = t.snapshot
+                          const items = (snap.furniture ?? []).map((f) => ({ ...f, type: f.type as FurnitureItem['type'] }))
+                          setFurniture(items)
+                          if (snap.floorLevelY !== undefined) setFloorLevelY(snap.floorLevelY)
+                          if (snap.guests) setGuests(snap.guests)
+                          if (snap.guestAssignments) setGuestAssignments(snap.guestAssignments ?? {})
+                          if (snap.itemColors) setItemColors(snap.itemColors ?? {})
+                          if (snap.customModels?.length) setCustomModels(snap.customModels)
+                          setHistory([items])
+                          setHistoryIndex(0)
+                          setShowTemplatePicker(false)
+                        }}
+                        style={{ flex: 1, padding: 12, textAlign: 'left', background: 'rgba(0,0,0,0.03)', border: `1px solid ${theme.border}`, borderRadius: 8, cursor: 'pointer', fontSize: 13 }}
+                      >
+                        {t.name}
+                      </button>
+                    )}
+                    {isOwn && !isRenaming && (
+                      <>
+                        <button type="button" onClick={() => { setRenamingTemplateId(t.id); setRenameTemplateValue(t.name) }} style={{ padding: '6px 8px', fontSize: 11, background: 'rgba(0,0,0,0.06)', border: 'none', borderRadius: 6, cursor: 'pointer', color: theme.textSecondary }} title="Rename">Edit</button>
+                        <button type="button" onClick={async (e) => { e.stopPropagation(); if (confirm('Delete this template?')) { await deleteTemplate(t.id); refreshTemplateList(); } }} style={{ padding: '6px 8px', fontSize: 11, background: 'rgba(239,68,68,0.1)', border: 'none', borderRadius: 6, cursor: 'pointer', color: theme.danger }} title="Delete">×</button>
+                      </>
+                    )}
+                  </div>
                 )
               })}
             </div>
@@ -2376,6 +2470,7 @@ function ShareLinkForm({
   onClose: () => void
 }) {
   const [role, setRole] = useState<'view' | 'edit'>('edit')
+  const [expiresInDays, setExpiresInDays] = useState<number | null>(30)
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [existingLinks, setExistingLinks] = useState<ShareLinkRow[]>([])
@@ -2401,7 +2496,7 @@ function ShareLinkForm({
     setError(null)
     try {
       const { createShareLink } = await import('./actions/layouts')
-      const res = await createShareLink(layoutId, role, 30)
+      const res = await createShareLink(layoutId, role, expiresInDays)
       if (res.error) throw new Error(res.error)
       if (res.token) {
         const base = typeof window !== 'undefined' ? window.location.origin : ''
@@ -2479,15 +2574,25 @@ function ShareLinkForm({
         </div>
       )}
       <label style={{ display: 'block', fontSize: 12, marginBottom: 4, color: theme.textSecondary }}>Create new link</label>
-      <select value={role} onChange={(e) => setRole(e.target.value as 'view' | 'edit')} style={{ width: '100%', padding: 8, marginBottom: 12, border: `1px solid ${theme.border}`, borderRadius: 6 }}>
-        <option value="view">View only</option>
-        <option value="edit">Can edit</option>
-      </select>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <select value={role} onChange={(e) => setRole(e.target.value as 'view' | 'edit')} style={{ flex: '1 1 100px', padding: 8, border: `1px solid ${theme.border}`, borderRadius: 6 }}>
+          <option value="view">View only</option>
+          <option value="edit">Can edit</option>
+        </select>
+        <select value={expiresInDays === null ? 'never' : String(expiresInDays)} onChange={(e) => setExpiresInDays(e.target.value === 'never' ? null : Number(e.target.value))} style={{ flex: '1 1 100px', padding: 8, border: `1px solid ${theme.border}`, borderRadius: 6 }}>
+          <option value="7">Expires in 7 days</option>
+          <option value="30">Expires in 30 days</option>
+          <option value="90">Expires in 90 days</option>
+          <option value="never">Never expires</option>
+        </select>
+      </div>
       {error && <p style={{ color: theme.danger, fontSize: 12, marginBottom: 8 }}>{error}</p>}
       <button onClick={handleCreate} disabled={creating} style={{ padding: '8px 16px', background: theme.accent, color: '#fff', border: 'none', borderRadius: 6, fontSize: 13, cursor: creating ? 'wait' : 'pointer', fontWeight: 600 }}>
         {creating ? 'Creating…' : 'Create share link'}
       </button>
-      <p style={{ marginTop: 8, fontSize: 11, color: theme.textSecondary }}>Link expires in 30 days.</p>
+      <p style={{ marginTop: 8, fontSize: 11, color: theme.textSecondary }}>
+        {expiresInDays === null ? 'Link does not expire.' : `Link expires in ${expiresInDays} days.`}
+      </p>
     </div>
   )
 }

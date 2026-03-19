@@ -227,6 +227,8 @@ export default function MyLayoutsPage() {
               >
                 <Link
                   href={`/?layoutId=${l.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   style={{
                     flex: 1,
                     padding: '16px 20px',

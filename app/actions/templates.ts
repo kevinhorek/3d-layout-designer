@@ -44,3 +44,23 @@ export async function createTemplate(params: {
   if (error) return { error: error.message, id: null }
   return { error: null, id: data.id }
 }
+
+export async function deleteTemplate(id: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in' }
+  const { error } = await supabase.from('layout_templates').delete().eq('id', id).eq('owner_id', user.id)
+  if (error) return { error: error.message }
+  return { error: null }
+}
+
+export async function updateTemplate(id: string, name: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Not signed in' }
+  const trimmed = name.trim()
+  if (!trimmed) return { error: 'Name cannot be empty' }
+  const { error } = await supabase.from('layout_templates').update({ name: trimmed }).eq('id', id).eq('owner_id', user.id)
+  if (error) return { error: error.message }
+  return { error: null }
+}

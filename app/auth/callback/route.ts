@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
+import { getPublicOrigin } from '@/lib/requestOrigin'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
+  const origin = getPublicOrigin(request)
   const code = searchParams.get('code')
   const tokenHash = searchParams.get('token_hash')
   const type = searchParams.get('type')

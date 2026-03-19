@@ -1,0 +1,46 @@
+# Example: build Dockerfile and deploy to Cloud Run (adjust project IDs and service name).
+# Trigger from Cloud Build UI or: gcloud builds submit --config=cloudbuild.yaml .
+#
+# Required substitutions (set in trigger or CLI):
+#   _REGION, _SERVICE, _AR_REPO (Artifact Registry repo name)
+
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/3d-layout-designer:$SHORT_SHA'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/3d-layout-designer:latest'
+      - .
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/3d-layout-designer'
+
+  - name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - '${_SERVICE}'
+      - '--image'
+      - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/3d-layout-designer:$SHORT_SHA'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - managed
+
+images:
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/3d-layout-designer:$SHORT_SHA'
+  - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_AR_REPO}/3d-layout-designer:latest'
+
+substitutions:
+  _REGION: us-central1
+  _SERVICE: 3d-layout-designer
+  _AR_REPO: cloud-run-source-deploy
+
+options:
+  logging: CLOUD_LOGGING_ONLY
