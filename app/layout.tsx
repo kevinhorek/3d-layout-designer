@@ -6,6 +6,7 @@ export const metadata: Metadata = {
   title: '3D Layout Designer',
   description: 'Design and visualize event layouts in 3D',
   manifest: '/manifest.json',
+  icons: { icon: '/icons/icon.svg' },
   other: {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-capable': 'yes',
