@@ -26,7 +26,8 @@ RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
-COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Standalone’s .next can be incomplete; ensure full build (BUILD_ID, etc.) is present so "next start" / server.js finds it.
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
 
 USER nextjs
 EXPOSE 3000

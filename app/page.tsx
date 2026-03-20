@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 import { useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { venues, getDefaultVenue, getDefaultLocation, findLocationById, type Venue, type VenueLocation } from './venueData'
-import { createClient } from '@/lib/supabase/client'
+import { createClient, isSupabaseConfigured } from '@/lib/supabase/client'
 import {
   getLayoutByShareToken,
   getLayout,
@@ -504,12 +504,17 @@ function LayoutDesigner3D() {
   }, [])
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null))
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) =>
-      setUser(session?.user ?? null)
-    )
-    return () => subscription.unsubscribe()
+    if (!isSupabaseConfigured()) return
+    try {
+      const supabase = createClient()
+      supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null)).catch(() => setUser(null))
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) =>
+        setUser(session?.user ?? null)
+      )
+      return () => subscription.unsubscribe()
+    } catch {
+      setUser(null)
+    }
   }, [])
 
   useEffect(() => {
@@ -618,7 +623,7 @@ function LayoutDesigner3D() {
   }, [searchParams.get('shareToken') ?? '', searchParams.get('layoutId') ?? '', searchParams.get('new') ?? '', user?.id])
 
   useEffect(() => {
-    if (!layoutIdForRealtime || typeof window === 'undefined') return
+    if (!isSupabaseConfigured() || !layoutIdForRealtime || typeof window === 'undefined') return
     const supabase = createClient()
     const channel = supabase.channel(`layout:${layoutIdForRealtime}`)
     channel
