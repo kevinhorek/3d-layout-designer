@@ -23,6 +23,8 @@ Set these in Cloud Run (or Secret Manager → env):
 
 Local default remains `http://localhost:3000` when `NEXT_PUBLIC_SITE_URL` is unset.
 
+If these are not set, the app still loads (middleware skips auth), but sign-in and cloud save/share will not work.
+
 ## Supabase dashboard
 
 For each production URL (Vercel + Cloud Run):
